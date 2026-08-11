@@ -1,0 +1,192 @@
+name: Release
+
+# Publishes the `utos` binaries. CHANGELOG.md drives the version, matching utos/api and
+# utos/sdk-dotnet: a dated `## [x.y.z] - <date>` heading means "this is released", so the
+# dev -> main merge that dates the heading *is* the release.
+#
+# NativeAOT cannot cross-compile — the toolchain emits native code for the machine it runs on —
+# so every target needs its own runner. That is why this is a matrix rather than one job with
+# five `-r` flags.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # create the tag and the GitHub release
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  # --- Decide whether this push is a release, and at what version ---------------
+  resolve:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      should_release: ${{ steps.v.outputs.should_release }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0   # need tags to tell a release from an ordinary push
+
+      - name: Resolve version from CHANGELOG.md
+        id: v
+        run: |
+          set -euo pipefail
+
+          # First heading carrying a date. An undated heading is the next cycle, not a release.
+          VERSION_LINE=$(grep -m1 '^\#\# \[.*\] - [0-9]' CHANGELOG.md || true)
+          if [ -z "$VERSION_LINE" ]; then
+            echo "::error::No released version in CHANGELOG.md (the heading needs a date)"
+            exit 1
+          fi
+
+          VERSION=$(echo "$VERSION_LINE" | sed 's/.*\[\(.*\)\].*/\1/')
+
+          # main also receives pushes that are not releases — a docs fix, a back-merge. An
+          # existing tag means this version already shipped, so skip rather than fail.
+          SHOULD_RELEASE=true
+          if git rev-parse "refs/tags/v${VERSION}" >/dev/null 2>&1; then
+            SHOULD_RELEASE=false
+          fi
+
+          echo "version=$VERSION"               >> "$GITHUB_OUTPUT"
+          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "::notice::version=$VERSION release=$SHOULD_RELEASE"
+
+  # --- One native binary per platform ------------------------------------------
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.should_release == 'true'
+    strategy:
+      fail-fast: false   # a broken platform should not hide the state of the others
+      matrix:
+        include:
+          - { rid: win-x64,     os: windows-latest,   archive: zip }
+          - { rid: linux-x64,   os: ubuntu-latest,    archive: tar }
+          - { rid: linux-arm64, os: ubuntu-24.04-arm, archive: tar }
+          - { rid: osx-x64,     os: macos-13,         archive: tar }
+          - { rid: osx-arm64,   os: macos-latest,     archive: tar }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      # The AOT toolchain links with the platform's native linker. Windows gets MSVC and macOS
+      # the Xcode command line tools from the runner image; Linux needs these explicitly.
+      - name: Install native toolchain (Linux)
+        if: startsWith(matrix.rid, 'linux')
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Publish ${{ matrix.rid }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet publish src/Utos.Cli/Utos.Cli.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            -p:Version=${{ needs.resolve.outputs.version }}
+
+      # Each runner is native to its target, so the binary it just produced can be executed.
+      # This catches AOT failures that only appear at run time — exactly the class of problem
+      # that makes reflection-based libraries unusable here.
+      - name: Smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          BIN="src/Utos.Cli/bin/Release/net10.0/${{ matrix.rid }}/publish/utos"
+          # An `if`, not `&&` — under `set -e` a false `&&` would exit the script.
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then BIN="${BIN}.exe"; fi
+          "$BIN" --version
+          "$BIN" validate examples/hello.yaml
+          "$BIN" inspect examples/order-fulfilment.yaml
+          "$BIN" context ls
+
+      - name: Package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          RID="${{ matrix.rid }}"
+          SRC="src/Utos.Cli/bin/Release/net10.0/${RID}/publish"
+          mkdir -p dist
+
+          # Ship the binary, the licence and the readme — not the .pdb/.dbg, which are large
+          # and useful only for debugging a specific build.
+          STAGE=$(mktemp -d)
+          if [ "$RID" = "win-x64" ]; then cp "$SRC/utos.exe" "$STAGE/"; else cp "$SRC/utos" "$STAGE/"; fi
+          cp README.md CHANGELOG.md "$STAGE/"
+
+          # The archive is written outside the staging directory, so it cannot end up
+          # archiving itself.
+          OUT="$PWD/dist"
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            (cd "$STAGE" && 7z a -tzip "$OUT/utos-${VERSION}-${RID}.zip" .) >/dev/null
+          else
+            tar -czf "$OUT/utos-${VERSION}-${RID}.tar.gz" -C "$STAGE" .
+          fi
+
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: utos-${{ matrix.rid }}
+          path: dist/*
+          if-no-files-found: error
+
+  # --- Tag, checksum, publish ---------------------------------------------------
+  release:
+    needs: [resolve, build]
+    if: needs.resolve.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: staging
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          mkdir -p dist && mv staging/* dist/
+          (cd dist && sha256sum ./* > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: Release notes
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+          # The section for this version, up to the next heading.
+          awk -v v="## [$VERSION]" '
+            index($0, v) == 1 { grab = 1; next }
+            /^## \[/ && grab { exit }
+            grab { print }
+          ' CHANGELOG.md > notes.md
+          cat notes.md
+
+      - name: Tag and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="${{ needs.resolve.outputs.version }}"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "v${VERSION}"
+          git push origin "v${VERSION}"
+
+          gh release create "v${VERSION}" \
+            --title "v${VERSION}" \
+            --notes-file notes.md \
+            dist/*

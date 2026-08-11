@@ -41,6 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   are validated *before* the daemon is contacted, so a broken one fails identically whether or not
   a daemon is reachable, and with a better message than a flattened `InvalidArgument`
 
+- Release pipeline producing self-contained NativeAOT binaries for `win-x64`, `linux-x64`,
+  `linux-arm64`, `osx-x64` and `osx-arm64`, with `SHA256SUMS`, published to GitHub releases.
+  NativeAOT cannot cross-compile, so each target builds on its own runner and smoke-tests the
+  binary it just produced — which is what catches AOT failures that only appear at run time
+
 ### Notes
 - There is no `utos build`. A `WorkflowBundle` is a wire payload rather than a distributable
   artifact, so resolution is a pipeline stage that `validate` and `load` drive, and `inspect` is

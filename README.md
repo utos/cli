@@ -7,6 +7,23 @@ client builds and the daemon executes. It is the only component that reads autho
 resolves dependencies and contacts registries; the daemon receives a fully-resolved bundle and
 runs it.
 
+## Install
+
+Grab the binary for your platform from the [latest release](https://github.com/utos/cli/releases/latest)
+and put it on your `PATH`. There is no runtime to install — the binaries are self-contained.
+
+| Platform | Asset |
+|---|---|
+| Windows x64 | `utos-<version>-win-x64.zip` |
+| Linux x64 / arm64 | `utos-<version>-linux-x64.tar.gz`, `…-linux-arm64.tar.gz` |
+| macOS Apple silicon / Intel | `utos-<version>-osx-arm64.tar.gz`, `…-osx-x64.tar.gz` |
+
+`SHA256SUMS` is published alongside them:
+
+```bash
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
 ## Commands
 
 | Command | Does |
