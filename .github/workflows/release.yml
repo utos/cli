@@ -68,10 +68,16 @@ jobs:
           - { rid: win-x64,     os: windows-latest,   archive: zip }
           - { rid: linux-x64,   os: ubuntu-latest,    archive: tar }
           - { rid: linux-arm64, os: ubuntu-24.04-arm, archive: tar }
-          # macos-13 was retired, and a job requesting it queues forever rather than failing.
-          # macos-15-intel is the current x64 image; Apple silicon runners cannot produce an x64
-          # binary, and Rosetta only translates x86 -> arm, so an Intel Mac needs a native build.
-          - { rid: osx-x64,     os: macos-15-intel,   archive: tar }
+          # Apple silicon runners cannot produce an x64 binary, and Rosetta translates x86 -> arm
+          # rather than the reverse, so an Intel Mac needs a native build.
+          #
+          # The newest available Intel image, chosen purely for how long it has before
+          # retirement: v0.1.0 built osx-x64 against SDK 15.5 and osx-arm64 against SDK 26.5, and
+          # both binaries reported `minos 12.0` — .NET pins the deployment target itself, so the
+          # build host does not constrain which macOS versions the binary runs on. That leaves
+          # retirement as the only thing to optimise for, and it matters: macos-13 was retired,
+          # and a job requesting a retired label does not fail, it queues indefinitely.
+          - { rid: osx-x64,     os: macos-26-intel,   archive: tar }
           - { rid: osx-arm64,   os: macos-latest,     archive: tar }
     runs-on: ${{ matrix.os }}
     steps:
