@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Utos.Cli/Utos.Cli.csproj" />
+    <Project Path="src/Utos.Cli.Core/Utos.Cli.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Utos.Cli.Tests/Utos.Cli.Tests.csproj" />
+  </Folder>
+</Solution>

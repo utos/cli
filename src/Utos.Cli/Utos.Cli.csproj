@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>Utos.Cli</RootNamespace>
+    <AssemblyName>utos</AssemblyName>
+
+    <!-- Shipped as a NativeAOT single-file binary; see .github/workflows/release.yml. -->
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- Surfaced by `utos version`; the release pipeline overrides it with -p:Version=. -->
+    <Version>0.1.0-dev</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Utos.Cli.Core\Utos.Cli.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+</Project>

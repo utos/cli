@@ -1,0 +1,69 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: order-fulfilment
+  version: "1.0.0"
+  namespace: acme
+spec:
+  dependencies:
+    emailer: ./shared/send-email.yaml
+
+  activities:
+    poll-order:
+      type: http
+      method: GET
+      url: "{{ env.API_BASE }}/orders/{{ input.orderId }}"
+      onSuccess:
+        - condition: "{{ output.status == 'ready' }}"
+          transition:
+            name: fan-out
+            input:
+              addons: "{{ output.addons }}"
+              email: "{{ output.customer.email }}"
+        # No condition, so this always matches — the fallback, and the loop's back-edge.
+        - transition:
+            name: wait
+
+    wait:
+      type: timer
+      duration: 30s
+      onSuccess:
+        - transition:
+            name: poll-order
+
+    fan-out:
+      type: promise
+      mode: count
+      requiredCount: 2
+      branches:
+        - name: notify
+          target:
+            name: notify-customer
+            input:
+              recipient: "{{ input.email }}"
+        - name: "addon-{{ item.sku }}"
+          forEach:
+            collection: "{{ input.addons }}"
+            alias: item
+          condition: "{{ item.enabled }}"
+          target:
+            name: provision-addon
+            input:
+              sku: "{{ item.sku }}"
+      onSuccess:
+        - result:
+            fulfilled: true
+
+    notify-customer:
+      type: workflow
+      workflow: emailer
+      startActivity: send
+      detached: true
+      input:
+        recipient: "{{ input.recipient }}"
+
+    provision-addon:
+      type: http
+      method: POST
+      url: https://api.example.com/addons
+      body: '{"sku": "{{ input.sku }}"}'

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <!-- xunit's runner uses reflection; AOT analysis does not apply to the test host. -->
+    <IsAotCompatible>false</IsAotCompatible>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Utos.Cli.Core\Utos.Cli.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

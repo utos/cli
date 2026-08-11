@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+# Fixtures are compared byte-for-byte by golden tests; normalising them would be a silent edit.
+*.json  text eol=lf
+*.yaml  text eol=lf
+*.yml   text eol=lf

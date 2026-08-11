@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [dev, main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - run: dotnet restore Utos.Cli.slnx
+      - run: dotnet build Utos.Cli.slnx --no-restore --configuration Release
+      - run: dotnet test tests/Utos.Cli.Tests/Utos.Cli.Tests.csproj --no-build --configuration Release
+
+      # The published binary is what ships, and AOT problems only appear at publish time — so the
+      # publish runs on every PR rather than only at release.
+      - name: NativeAOT publish smoke test
+        run: |
+          dotnet publish src/Utos.Cli/Utos.Cli.csproj -c Release -r linux-x64
+          BIN=src/Utos.Cli/bin/Release/net10.0/linux-x64/publish/utos
+          "$BIN" validate examples/hello.yaml
+          "$BIN" inspect examples/order-fulfilment.yaml

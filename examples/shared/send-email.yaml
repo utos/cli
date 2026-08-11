@@ -1,0 +1,13 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: send-email
+  version: "2.1.0"
+  namespace: acme
+spec:
+  activities:
+    send:
+      type: http
+      method: POST
+      url: https://mail.example.com/send
+      body: '{"to": "{{ input.recipient }}"}'

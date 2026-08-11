@@ -1,0 +1,24 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: hello
+  version: "1.0.0"
+  description: The smallest useful workflow — one HTTP call and a decision.
+spec:
+  activities:
+    greet:
+      type: http
+      method: GET
+      url: "{{ env.API_BASE }}/hello/{{ input.name }}"
+      headers:
+        accept: application/json
+      onSuccess:
+        - condition: "{{ output.ok }}"
+          transition:
+            name: end
+        - result:
+            greeted: false
+            reason: "{{ output.error }}"
+      onFailure:
+        - transition:
+            name: error
