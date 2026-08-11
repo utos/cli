@@ -5,7 +5,9 @@ All notable changes to the Utos CLI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0]
+## [0.2.0]
+
+## [0.1.0] - 2026-08-11
 
 ### Added
 - `utos validate <file>` — resolves a workflow and its local dependencies, then checks the
@@ -40,6 +42,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Distinct exit codes for usage, validation failure, daemon error and workflow failure. Workflows
   are validated *before* the daemon is contacted, so a broken one fails identically whether or not
   a daemon is reachable, and with a better message than a flattened `InvalidArgument`
+
+- Release pipeline producing self-contained NativeAOT binaries for `win-x64`, `linux-x64`,
+  `linux-arm64`, `osx-x64` and `osx-arm64`, with `SHA256SUMS`, published to GitHub releases.
+  NativeAOT cannot cross-compile, so each target builds on its own runner and smoke-tests the
+  binary it just produced — which is what catches AOT failures that only appear at run time
 
 ### Notes
 - There is no `utos build`. A `WorkflowBundle` is a wire payload rather than a distributable

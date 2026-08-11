@@ -9,8 +9,16 @@
     <PublishAot>true</PublishAot>
     <InvariantGlobalization>true</InvariantGlobalization>
 
+    <!--
+      Symbols go to a separate file rather than into the binary. No-op on Windows, but it roughly
+      halves the Linux and macOS binaries, and the released archive ships only the executable.
+    -->
+    <StripSymbols>true</StripSymbols>
+
     <!-- Surfaced by `utos version`; the release pipeline overrides it with -p:Version=. -->
     <Version>0.1.0-dev</Version>
+    <!-- Report the version on its own, rather than appending the commit sha to it. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
