@@ -1,0 +1,46 @@
+version: 2
+updates:
+  # NuGet, via Central Package Management — every version lives in Directory.Packages.props.
+  #
+  # Unlike utos/sdk-dotnet, a change to that file does NOT trigger a release here: this repo's
+  # release is driven by a dated heading in CHANGELOG.md, so these PRs can merge into dev freely.
+  # A new spec release reaches the CLI through these bumps rather than through a dispatch — the
+  # CLI is an application with its own version, not a generated artifact of the spec, so whether
+  # a new spec warrants a CLI release is a judgement call that CI informs but should not make.
+  - package-ecosystem: nuget
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    commit-message:
+      prefix: chore
+    groups:
+      # The Utos packages are released in lockstep and depend on each other, so they must move
+      # together. Bumped separately they can resolve to a mixed set — a client compiled against
+      # one version of the workflow types running against another — which builds cleanly and then
+      # misbehaves. Keeping them in one PR also makes a spec bump one reviewable change.
+      utos-sdk:
+        patterns:
+          - "Utos.*"
+      # Everything else, where minor and patch bumps are routine enough to review in bulk.
+      nuget-minor-and-patch:
+        exclude-patterns:
+          - "Utos.*"
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+    groups:
+      github-actions:
+        patterns:
+          - "*"
