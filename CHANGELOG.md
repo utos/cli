@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.2.0]
 
+### Added
+- `utos cancel <execution-id>` — stop a running execution, with an optional `--reason` recorded on
+  it. Cancellation is terminal and idempotent, and loses to a state the execution already reached:
+  a run that has already completed or failed reports the daemon's `FAILED_PRECONDITION` rather than
+  pretending to have cancelled it
+- The `type` discriminator accepts **dot-separated paths** — `workflow.call`, `workflow.spawn`,
+  `promise.all`, `promise.any`, `promise.race`, `promise.count` — following nested configuration
+  oneofs. Keys are distributed across the messages on the path: `workflow` and `startActivity` are
+  declared by the outer config so they stay outside, while `requiredCount` belongs to
+  `promise.count` and `onEmitted` to `workflow.call`, so those nest one level deeper
+
+### Changed
+- **BREAKING**: bare `type: workflow` and `type: promise` are rejected with `UTOS-S007`. Neither
+  says what the activity actually does — whether the caller awaits the child, or how the fan-out
+  settles — and there is deliberately no default for either. The error lists the legal paths
+- Bumped the Utos SDK packages to `0.0.12`
+- The transform stays **entirely descriptor-driven**: paths, their legal spellings, and which
+  message each authored key lands on are all derived from `WorkflowActivity.Descriptor`, so a new
+  activity kind or mode added to the spec becomes authorable on an SDK bump with no code change
+  here. `examples/order-fulfilment.yaml` moves to `promise.count` and `workflow.spawn`
+
 ## [0.1.0] - 2026-08-11
 
 ### Added
