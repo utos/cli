@@ -32,8 +32,7 @@ spec:
             name: poll-order
 
     fan-out:
-      type: promise
-      mode: count
+      type: promise.count
       requiredCount: 2
       branches:
         - name: notify
@@ -55,10 +54,9 @@ spec:
             fulfilled: true
 
     notify-customer:
-      type: workflow
+      type: workflow.spawn
       workflow: emailer
       startActivity: send
-      detached: true
       input:
         recipient: "{{ input.recipient }}"
 

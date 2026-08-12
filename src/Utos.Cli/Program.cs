@@ -16,6 +16,7 @@ internal static class Program
             LoadCommand.Create(),
             RunCommand.Create(),
             LogsCommand.Create(),
+            CancelCommand.Create(),
         };
 
         var parsed = root.Parse(args);
