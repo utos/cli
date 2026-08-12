@@ -67,7 +67,7 @@ public class BundleBuilderTests : IDisposable
                 emailer: ./send-email.yaml
               activities:
                 notify:
-                  type: workflow
+                  type: workflow.call
                   workflow: emailer
                   startActivity: send
             """);
@@ -102,7 +102,7 @@ public class BundleBuilderTests : IDisposable
                 emailer: ./send-email.yaml
               activities:
                 notify:
-                  type: workflow
+                  type: workflow.call
                   workflow: emailer
                   startActivity: send
             """);
@@ -148,7 +148,7 @@ public class BundleBuilderTests : IDisposable
             spec:
               activities:
                 notify:
-                  type: workflow
+                  type: workflow.call
                   workflow: mystery
                   startActivity: send
             """);
@@ -190,11 +190,11 @@ public class BundleBuilderTests : IDisposable
                 r: ./right.yaml
               activities:
                 one:
-                  type: workflow
+                  type: workflow.call
                   workflow: l
                   startActivity: call
                 two:
-                  type: workflow
+                  type: workflow.call
                   workflow: r
                   startActivity: call
             """);
@@ -217,7 +217,7 @@ public class BundleBuilderTests : IDisposable
             {dependency}
           activities:
             notify:
-              type: workflow
+              type: workflow.call
               workflow: emailer
               startActivity: send
         """;
@@ -233,7 +233,7 @@ public class BundleBuilderTests : IDisposable
             other: {reference}
           activities:
             call:
-              type: workflow
+              type: workflow.call
               workflow: other
               startActivity: send
         """;

@@ -93,7 +93,7 @@ public class SourceFormatTests
 
     [Theory]
     [InlineData("timer", "duration: 30s")]
-    [InlineData("promise", "mode: all\nbranches:\n  - name: a\n    target: { name: call }")]
+    [InlineData("promise.all", "branches:\n  - name: a\n    target: { name: call }")]
     public void Supports_every_activity_kind(string type, string body)
     {
         var workflow = Parse($"""
@@ -106,23 +106,106 @@ public class SourceFormatTests
             workflow.Spec.Activities["call"].ConfigCase);
     }
 
+    [Theory]
+    [InlineData("workflow.call")]
+    [InlineData("workflow.spawn")]
+    public void Nests_a_dotted_type_under_both_of_its_segments(string type)
+    {
+        // A two-segment path distributes its keys: `workflow`/`startActivity` are declared by
+        // WorkflowActivityConfig, so they stay at the outer level, while the mode message gets
+        // whatever it declares — here nothing, so it serializes as the bare discriminator.
+        var workflow = Parse($"""
+            sub:
+              type: {type}
+              workflow: emailer
+              startActivity: send
+            """);
+
+        var config = workflow.Spec.Activities["sub"].Workflow;
+        var mode = type.Split('.')[1];
+
+        Assert.Equal("emailer", config.Workflow);
+        Assert.Equal("send", config.StartActivity);
+        Assert.Equal(mode, config.ModeCase.ToString().ToLowerInvariant());
+    }
+
+    [Fact]
+    public void Places_a_key_on_the_message_along_the_path_that_declares_it()
+    {
+        // `branches` belongs to PromiseActivityConfig and `requiredCount` to PromiseCountConfig,
+        // so one authored mapping lands on two different levels.
+        var workflow = Parse("""
+            fan-out:
+              type: promise.count
+              requiredCount: 2
+              branches:
+                - name: a
+                  target: { name: fan-out }
+            """);
+
+        var promise = workflow.Spec.Activities["fan-out"].Promise;
+
+        Assert.Single(promise.Branches);
+        Assert.Equal(PromiseActivityConfig.CompletionOneofCase.Count, promise.CompletionCase);
+        Assert.Equal(2, promise.Count.RequiredCount);
+    }
+
+    [Fact]
+    public void Accepts_onEmitted_in_both_spellings_inside_a_call()
+    {
+        // onEmitted is declared by CallActivityConfig, so it must reach the inner message even
+        // though the author writes it flat beside workflow/startActivity.
+        var workflow = Parse("""
+            watch:
+              type: workflow.call
+              workflow: mailbox
+              startActivity: poll
+              on_emitted:
+                - transition: { name: watch }
+            """);
+
+        var call = workflow.Spec.Activities["watch"].Workflow.Call;
+
+        Assert.Single(call.OnEmitted);
+        Assert.Equal("watch", call.OnEmitted[0].Transition.Name);
+    }
+
+    [Theory]
+    [InlineData("workflow")]
+    [InlineData("promise")]
+    public void Rejects_a_type_path_that_stops_short_of_a_mode(string type)
+    {
+        // Bare `workflow` says nothing about whether the caller awaits the child, and bare
+        // `promise` says nothing about how it settles. There is deliberately no default.
+        var error = ParseError($"""
+            sub:
+              type: {type}
+              workflow: emailer
+              startActivity: send
+            """);
+
+        Assert.Equal(SourceCodes.ActivityTypeInvalid, error.Issues[0].Code);
+        Assert.Contains($"unknown type '{type}'", error.Issues[0].Message);
+    }
+
     [Fact]
     public void Resolves_plain_scalars_with_the_yaml_core_schema()
     {
-        // Type inference is load-bearing: `detached` must arrive as a JSON boolean and
-        // `requiredCount` as a number, while `duration` must stay a string.
+        // Type inference is load-bearing: `requiredCount` must arrive as a JSON number while
+        // `duration` must stay a string.
         var workflow = Parse("""
-            sub:
-              type: workflow
-              workflow: emailer
-              startActivity: send
-              detached: true
+            fan-out:
+              type: promise.count
+              requiredCount: 2
+              branches:
+                - name: a
+                  target: { name: wait }
             wait:
               type: timer
               duration: 90s
             """);
 
-        Assert.True(workflow.Spec.Activities["sub"].Workflow.Detached);
+        Assert.Equal(2, workflow.Spec.Activities["fan-out"].Promise.Count.RequiredCount);
         Assert.Equal(90, workflow.Spec.Activities["wait"].Timer.Duration.Seconds);
     }
 
@@ -170,7 +253,10 @@ public class SourceFormatTests
 
         Assert.Equal(SourceCodes.ActivityTypeInvalid, error.Issues[0].Code);
         // The list is derived from the proto descriptor, not a hard-coded table.
-        Assert.Contains("http, promise, timer, workflow", error.Issues[0].Message);
+        Assert.Contains(
+            "http, promise.all, promise.any, promise.count, promise.race, timer, workflow.call, "
+            + "workflow.spawn",
+            error.Issues[0].Message);
         Assert.True(error.Issues[0].Line > 0, "the issue should point at a line");
     }
 
