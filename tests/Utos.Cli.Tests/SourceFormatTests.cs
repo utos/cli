@@ -93,7 +93,7 @@ public class SourceFormatTests
 
     [Theory]
     [InlineData("timer", "duration: 30s")]
-    [InlineData("promise.all", "branches:\n  - name: a\n    target: { name: call }")]
+    [InlineData("promise.all", "branches:\n  - name: a\n    workflow: pricer\n    startActivity: quote")]
     public void Supports_every_activity_kind(string type, string body)
     {
         var workflow = Parse($"""
@@ -140,7 +140,8 @@ public class SourceFormatTests
               requiredCount: 2
               branches:
                 - name: a
-                  target: { name: fan-out }
+                  workflow: self
+                  startActivity: fan-out
             """);
 
         var promise = workflow.Spec.Activities["fan-out"].Promise;
@@ -161,13 +162,15 @@ public class SourceFormatTests
               workflow: mailbox
               startActivity: poll
               on_emitted:
-                - transition: { name: watch }
+                - workflow: ingester
+                  startActivity: ingest
             """);
 
         var call = workflow.Spec.Activities["watch"].Workflow.Call;
 
         Assert.Single(call.OnEmitted);
-        Assert.Equal("watch", call.OnEmitted[0].Transition.Name);
+        Assert.Equal("ingester", call.OnEmitted[0].Workflow);
+        Assert.Equal("ingest", call.OnEmitted[0].StartActivity);
     }
 
     [Theory]
@@ -199,7 +202,8 @@ public class SourceFormatTests
               requiredCount: 2
               branches:
                 - name: a
-                  target: { name: wait }
+                  workflow: self
+                  startActivity: wait
             wait:
               type: timer
               duration: 90s

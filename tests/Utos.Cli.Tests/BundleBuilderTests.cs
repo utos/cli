@@ -159,6 +159,72 @@ public class BundleBuilderTests : IDisposable
     }
 
     [Fact]
+    public void A_promise_branch_may_name_self_and_it_resolves_to_this_document()
+    {
+        // The reason `self` exists. Recursive fan-out is otherwise inexpressible: a document
+        // reaching itself through an alias is a cycle (UTOS-S005), so there is nothing to declare.
+        // It resolves like any alias, which is what keeps the word out of the bundle.
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              activities:
+                walk:
+                  type: promise.all
+                  branches:
+                    - name: child
+                      workflow: self
+                      startActivity: walk
+            """);
+
+        var bundle = BundleBuilder.Build(entry);
+
+        var branch = bundle.Bundle.Workflows["root:1.0.0"].Spec.Activities["walk"].Promise.Branches[0];
+
+        Assert.Equal("root:1.0.0", branch.Workflow);
+    }
+
+    [Fact]
+    public void An_onEmitted_rule_may_not_name_self()
+    {
+        // UTOS-S011. In the consumer's own graph a handler can transition to the call activity
+        // that dispatched it, and in the handler's own execution — which holds no subscription —
+        // that starts a second producer rather than resuming the first, once per value. Requiring
+        // a document is what makes that unreachable rather than merely discouraged.
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              activities:
+                watch:
+                  type: workflow.call
+                  workflow: self
+                  startActivity: poll
+                  onEmitted:
+                    - workflow: self
+                      startActivity: handle
+                handle:
+                  type: http
+                  method: GET
+                  url: https://api.example.com/ingest
+            """);
+
+        var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
+
+        // Both sites are reported, not just the first: an author fixing one and rebuilding to find
+        // the other is a worse experience than being told once.
+        Assert.Equal(2, error.Issues.Count);
+        Assert.All(error.Issues, i => Assert.Equal(SourceCodes.SelfNotAllowedHere, i.Code));
+        Assert.Contains(error.Issues, i => i.Message.Contains("onEmitted rule"));
+    }
+
+    [Fact]
     public void Detects_a_dependency_cycle()
     {
         Write("a.yaml", Cycle("a", "./b.yaml"));
