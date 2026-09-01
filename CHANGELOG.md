@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0]
 
+### Changed
+- **Adopts spec 0.0.13: dispatched work is its own document.** A promise branch and an `onEmitted`
+  rule name a document — `workflow`, `startActivity`, `input` — instead of pointing at an activity
+  in the dispatching one, so resolution now rewrites aliases at three kinds of site rather than
+  one. `PromiseBranch.target` is gone.
+- **`self` resolves to the document it is written in**, and is legal only on a promise branch
+  (`UTOS-S011`, spec 0.0.14). It is resolved exactly like an alias, which is what keeps it out of
+  the dependency graph and so out of the cycle check that would otherwise reject recursive fan-out
+  as a document depending on itself. The daemon never sees the word.
+- Every `self` in a document is reported at once rather than one per build. An author fixing one
+  site and rebuilding to discover the next is a worse experience than being told the whole list.
+
 ## [0.2.0] - 2026-08-12
 
 ### Added

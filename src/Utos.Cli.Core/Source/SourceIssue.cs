@@ -55,6 +55,9 @@ public static class SourceCodes
 
     /// <summary>A registry dependency was requested; resolution is not implemented yet.</summary>
     public const string RegistryUnsupported = "UTOS-S010";
+
+    /// <summary><c>self</c> is used anywhere other than a promise branch's <c>workflow</c>.</summary>
+    public const string SelfNotAllowedHere = "UTOS-S011";
 }
 
 /// <summary>Thrown when authored source cannot be turned into a workflow.</summary>

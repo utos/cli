@@ -154,25 +154,77 @@ public static class BundleBuilder
 
             built.Spec.Dependencies.Clear();
 
+            var ownIdentity = WorkflowIdentity.FormatMetadata(built.Metadata);
+
             foreach (var (name, activity) in built.Spec.Activities)
             {
-                if (activity.ConfigCase != WorkflowActivity.ConfigOneofCase.Workflow) continue;
+                switch (activity.ConfigCase)
+                {
+                    case WorkflowActivity.ConfigOneofCase.Workflow:
+                        activity.Workflow.Workflow = Rewrite(
+                            activity.Workflow.Workflow,
+                            $"Activity '{name}'", selfAllowed: false);
 
-                var alias = activity.Workflow.Workflow;
-                if (aliases.TryGetValue(alias, out var identity))
-                {
-                    activity.Workflow.Workflow = identity;
-                }
-                else if (alias.Length > 0)
-                {
-                    Issues.Add(new SourceIssue(SourceCodes.DependencyAliasUnknown,
-                        $"Activity '{name}' references dependency '{alias}', which is not declared "
-                        + "in spec.dependencies.", file));
+                        if (activity.Workflow.ModeCase == WorkflowActivityConfig.ModeOneofCase.Call)
+                            for (var i = 0; i < activity.Workflow.Call.OnEmitted.Count; i++)
+                            {
+                                var rule = activity.Workflow.Call.OnEmitted[i];
+                                rule.Workflow = Rewrite(
+                                    rule.Workflow,
+                                    $"The onEmitted rule at index {i} of activity '{name}'",
+                                    selfAllowed: false);
+                            }
+
+                        break;
+
+                    case WorkflowActivity.ConfigOneofCase.Promise:
+                        foreach (var branch in activity.Promise.Branches)
+                            branch.Workflow = Rewrite(
+                                branch.Workflow,
+                                $"Branch '{branch.Name}' of activity '{name}'",
+                                selfAllowed: true);
+
+                        break;
                 }
             }
 
             return built;
+
+            // `self` is resolved exactly like an alias — to this document's own canonical identity
+            // — which is what keeps it out of the dependency graph and so out of the cycle check
+            // (UTOS-S005). The daemon never sees the word.
+            string Rewrite(string reference, string subject, bool selfAllowed)
+            {
+                if (reference == SelfReference)
+                {
+                    if (selfAllowed) return ownIdentity;
+
+                    // UTOS-S011. Only a promise branch may say `self`, because only a promise
+                    // branch has no other way to say it: recursive fan-out through an alias is a
+                    // cycle. Everywhere else it merely saves a document — and on an onEmitted rule
+                    // it puts the handler back in the consumer's own graph, where a transition can
+                    // reach the call activity that dispatched it and start a second producer per
+                    // value, without bound.
+                    Issues.Add(new SourceIssue(SourceCodes.SelfNotAllowedHere,
+                        $"{subject} names 'self', which is reserved for promise branches. "
+                        + "Declare the document in spec.dependencies and name the alias.", file));
+
+                    return reference;
+                }
+
+                if (aliases.TryGetValue(reference, out var identity)) return identity;
+
+                if (reference.Length > 0)
+                    Issues.Add(new SourceIssue(SourceCodes.DependencyAliasUnknown,
+                        $"{subject} references dependency '{reference}', which is not declared "
+                        + "in spec.dependencies.", file));
+
+                return reference;
+            }
         }
+
+        /// <summary>What an author writes to name the document a reference is written in.</summary>
+        private const string SelfReference = "self";
 
         private static bool IsLocalFile(string reference) =>
             reference.StartsWith("./", StringComparison.Ordinal)

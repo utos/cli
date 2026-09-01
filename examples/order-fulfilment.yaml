@@ -36,19 +36,19 @@ spec:
       requiredCount: 2
       branches:
         - name: notify
-          target:
-            name: notify-customer
-            input:
-              recipient: "{{ input.email }}"
+          workflow: self
+          startActivity: notify-customer
+          input:
+            recipient: "{{ input.email }}"
         - name: "addon-{{ item.sku }}"
           forEach:
             collection: "{{ input.addons }}"
             alias: item
           condition: "{{ item.enabled }}"
-          target:
-            name: provision-addon
-            input:
-              sku: "{{ item.sku }}"
+          workflow: self
+          startActivity: provision-addon
+          input:
+            sku: "{{ item.sku }}"
       onSuccess:
         - result:
             fulfilled: true
