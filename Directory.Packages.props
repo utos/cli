@@ -11,7 +11,7 @@
     -->
     <PackageVersion Include="Utos.Workflow" Version="0.0.13" />
     <PackageVersion Include="Utos.Workflow.Validation" Version="0.0.13" />
-    <PackageVersion Include="Utos.Daemon.Client" Version="0.0.12" />
+    <PackageVersion Include="Utos.Daemon.Client" Version="0.0.13" />
 
     <!-- Transport. The SDK ships no transport of its own. -->
     <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />
