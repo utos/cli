@@ -175,9 +175,16 @@ public static class BundleBuilder
                             for (var i = 0; i < activity.Workflow.Call.OnEmitted.Count; i++)
                             {
                                 var rule = activity.Workflow.Call.OnEmitted[i];
-                                rule.Workflow = Rewrite(
-                                    rule.Workflow,
-                                    $"The onEmitted rule at index {i} of activity '{name}'",
+
+                                // Only a handle names a document. A transition names an activity
+                                // in this workflow and a result names nothing, so neither is an
+                                // alias site — and neither may be rewritten, since the value they
+                                // carry is not a dependency reference at all.
+                                if (rule.ActionCase != EmissionRule.ActionOneofCase.Handle) continue;
+
+                                rule.Handle.Workflow = Rewrite(
+                                    rule.Handle.Workflow,
+                                    $"The onEmitted handler at index {i} of activity '{name}'",
                                     selfAllowed: false);
                             }
 

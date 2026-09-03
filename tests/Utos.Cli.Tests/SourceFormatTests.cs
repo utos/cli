@@ -155,22 +155,30 @@ public class SourceFormatTests
     public void Accepts_onEmitted_in_both_spellings_inside_a_call()
     {
         // onEmitted is declared by CallActivityConfig, so it must reach the inner message even
-        // though the author writes it flat beside workflow/startActivity.
+        // though the author writes it flat beside workflow/startActivity. The rule's own action
+        // nests one level further, which is what lets a rule carry a transition or a result
+        // instead.
         var workflow = Parse("""
             watch:
               type: workflow.call
               workflow: mailbox
               startActivity: poll
               on_emitted:
-                - workflow: ingester
-                  startActivity: ingest
+                - condition: "{{ output.done }}"
+                  transition: { name: wrap-up }
+                - handle:
+                    workflow: ingester
+                    startActivity: ingest
             """);
 
         var call = workflow.Spec.Activities["watch"].Workflow.Call;
 
-        Assert.Single(call.OnEmitted);
-        Assert.Equal("ingester", call.OnEmitted[0].Workflow);
-        Assert.Equal("ingest", call.OnEmitted[0].StartActivity);
+        Assert.Equal(2, call.OnEmitted.Count);
+        Assert.Equal(EmissionRule.ActionOneofCase.Transition, call.OnEmitted[0].ActionCase);
+        Assert.Equal("wrap-up", call.OnEmitted[0].Transition.Name);
+        Assert.Equal(EmissionRule.ActionOneofCase.Handle, call.OnEmitted[1].ActionCase);
+        Assert.Equal("ingester", call.OnEmitted[1].Handle.Workflow);
+        Assert.Equal("ingest", call.OnEmitted[1].Handle.StartActivity);
     }
 
     [Theory]
