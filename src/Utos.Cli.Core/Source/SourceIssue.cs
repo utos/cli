@@ -2,10 +2,16 @@ namespace Utos.Cli.Core.Source;
 
 /// <summary>
 /// A problem found while reading or resolving authored source, as opposed to a rule violation in
-/// a built bundle. Codes are the <c>UTOS-S###</c> range of
+/// a built bundle. Codes, where there is one, are the <c>UTOS-S###</c> range of
 /// <c>api/docs/workflow-source-format.md</c>.
 /// </summary>
-/// <param name="Code">The stable rule identifier, e.g. <c>UTOS-S007</c>.</param>
+/// <param name="Code">
+/// The stable rule identifier, e.g. <c>UTOS-S007</c>, or empty when the problem is not a rule
+/// violation at all. A <c>UTOS-S###</c> code names a defect in a <em>document</em>; something this
+/// implementation has simply not built yet is a fact about the tool, and a conforming
+/// implementation that had built it would never report one. Giving that a code would burn a slot
+/// in a shared range for something the specification never said.
+/// </param>
 /// <param name="Message">A human-readable explanation. Not contractual.</param>
 /// <param name="File">The file the problem is in.</param>
 /// <param name="Line">1-based line, or 0 when the problem is not tied to one.</param>
@@ -19,7 +25,9 @@ public sealed record SourceIssue(string Code, string Message, string File, int L
         if (Line > 0) location += ":" + Line;
         if (Line > 0 && Column > 0) location += ":" + Column;
 
-        return location + ": " + Code + " " + Message;
+        return Code.Length > 0
+            ? location + ": " + Code + " " + Message
+            : location + ": " + Message;
     }
 }
 
@@ -52,9 +60,6 @@ public static class SourceCodes
 
     /// <summary>The document is not well-formed, or does not match the workflow schema.</summary>
     public const string DocumentMalformed = "UTOS-S009";
-
-    /// <summary>A registry dependency was requested; resolution is not implemented yet.</summary>
-    public const string RegistryUnsupported = "UTOS-S010";
 
     /// <summary><c>self</c> is used anywhere other than a promise branch's <c>workflow</c>.</summary>
     public const string SelfNotAllowedHere = "UTOS-S011";

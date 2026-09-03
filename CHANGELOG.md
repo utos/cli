@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0]
 
 ### Changed
+- **The registry-reference error no longer carries a `UTOS-S010` code**, just its message. A registry reference is valid per the source format — the document is correct and this tool has not built resolution yet, so a code said the author wrote something wrong when they had not, and burned a slot in a range every implementation shares. The error itself is unchanged and stays until the OCI work lands. `SourceIssue.Code` is now optional for exactly this case, and renders without it. See utos/api#35
+
+### Changed
 - **Adopts spec 0.0.13: dispatched work is its own document.** A promise branch and an `onEmitted`
   rule name a document — `workflow`, `startActivity`, `input` — instead of pointing at an activity
   in the dispatching one, so resolution now rewrites aliases at three kinds of site rather than
