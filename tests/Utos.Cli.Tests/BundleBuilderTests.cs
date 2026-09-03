@@ -195,6 +195,48 @@ public class BundleBuilderTests : IDisposable
     }
 
     [Fact]
+    public void An_onEmitted_rule_that_is_not_a_handle_is_left_alone()
+    {
+        // Only a handle names a document. A transition names an activity in this workflow and a
+        // result names nothing, so neither is an alias site — and resolving one anyway would
+        // either report a perfectly good activity name as an undeclared dependency, or rewrite it
+        // to a canonical identity that names no activity at all.
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              activities:
+                watch:
+                  type: workflow.call
+                  workflow: self
+                  startActivity: poll
+                  onEmitted:
+                    - condition: "{{ output.done }}"
+                      transition: { name: wrap-up }
+                    - result: { seen: true }
+                poll:
+                  type: http
+                  method: GET
+                  url: https://api.example.com/poll
+                wrap-up:
+                  type: http
+                  method: POST
+                  url: https://api.example.com/wrap-up
+            """);
+
+        // `workflow: self` on the call activity is still rejected (UTOS-S011); what matters here
+        // is that the two rules contribute nothing of their own.
+        var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
+
+        var issue = Assert.Single(error.Issues);
+        Assert.Equal(SourceCodes.SelfNotAllowedHere, issue.Code);
+        Assert.Contains("Activity 'watch'", issue.Message);
+    }
+
+    [Fact]
     public void An_onEmitted_rule_may_not_name_self()
     {
         // UTOS-S011. In the consumer's own graph a handler can transition to the call activity
@@ -214,8 +256,9 @@ public class BundleBuilderTests : IDisposable
                   workflow: self
                   startActivity: poll
                   onEmitted:
-                    - workflow: self
-                      startActivity: handle
+                    - handle:
+                        workflow: self
+                        startActivity: handle
                 handle:
                   type: http
                   method: GET
@@ -228,7 +271,7 @@ public class BundleBuilderTests : IDisposable
         // the other is a worse experience than being told once.
         Assert.Equal(2, error.Issues.Count);
         Assert.All(error.Issues, i => Assert.Equal(SourceCodes.SelfNotAllowedHere, i.Code));
-        Assert.Contains(error.Issues, i => i.Message.Contains("onEmitted rule"));
+        Assert.Contains(error.Issues, i => i.Message.Contains("onEmitted handler"));
     }
 
     [Fact]
