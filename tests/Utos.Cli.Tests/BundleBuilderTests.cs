@@ -133,7 +133,14 @@ public class BundleBuilderTests : IDisposable
 
         var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
 
-        Assert.Equal(SourceCodes.RegistryUnsupported, error.Issues[0].Code);
+        // No UTOS-S code, deliberately: the document is valid and the tool is incomplete. A code
+        // would say the author wrote something wrong, and would burn a slot in a shared range for
+        // a limitation only this implementation has.
+        Assert.Empty(error.Issues[0].Code);
+        Assert.Contains("Registry resolution is not implemented yet", error.Issues[0].Message);
+
+        // And it still renders usefully without one, rather than leaving a gap where a code was.
+        Assert.DoesNotContain("  ", error.Issues[0].ToString());
     }
 
     [Fact]

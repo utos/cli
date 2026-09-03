@@ -122,7 +122,13 @@ public static class BundleBuilder
             if (!IsLocalFile(reference))
             {
                 // Registry resolution is the CLI's job, but it needs the OCI work in DESIGN.md §10.
-                Issues.Add(new SourceIssue(SourceCodes.RegistryUnsupported,
+                //
+                // Deliberately carries no UTOS-S code. The document is correct — a registry
+                // reference is exactly what the source format says one looks like — and the
+                // problem is that this tool has not built the feature yet. A conforming
+                // implementation that had would never report it, so a code would burn a slot in a
+                // shared range for something the specification never said.
+                Issues.Add(new SourceIssue(string.Empty,
                     $"Dependency '{alias}' points at the registry reference '{reference}'. "
                     + "Registry resolution is not implemented yet; use a './' or '../' file reference.",
                     declaringFile));
