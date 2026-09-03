@@ -130,3 +130,20 @@ console output is a few dozen lines of ANSI rather than a rendering library.
 Validation is not implemented here. It lives in `Utos.Workflow.Validation`, shared with the
 daemon and driven by the conformance fixtures in `utos/api`, so a workflow one tool accepts cannot
 be rejected by another.
+
+There is no `utos build`. A bundle is a wire payload rather than a distributable artifact, so
+resolution is a stage inside `validate` and `load`, and `inspect` shows the result — nothing writes
+a bundle to disk.
+
+`src/Utos.Cli` owns the console — commands, output, exit codes — and `src/Utos.Cli.Core` owns the
+pipeline and the daemon client and knows nothing about it. The split is load-bearing rather than
+tidy: everything in `Core` has to be callable from a test with no terminal, so it returns values
+and throws instead of writing to `Console`.
+
+Two things that will bite a contributor otherwise. The protobuf C# namespace is
+`Utos.Workflows.V1` — **plural** — while the wire package is `utos.workflow.v1`, singular. A
+singular namespace would shadow the `Workflow` message type for anything under `Utos.*`, and a
+using-alias cannot fix it, because C# resolves simple names through enclosing namespaces before
+using-directives. And a test project must not reference `Utos.Daemon.Server` alongside
+`Utos.Daemon.Client`: the two define the same gRPC service types and cannot coexist in one
+assembly.
