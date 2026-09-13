@@ -7,7 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.3.0]
 
+### Added
+- **`utos workflow ls` and `utos workflow rm`**: see and remove what is loaded on a daemon.
+  `rm` without a version removes every loaded version, as the daemon's `UnloadWorkflow` defines,
+  and a reference that matches nothing is an error rather than a quiet "removed".
+- **`utos execution ls` and `utos execution output`**: list runs, newest first, and read what one
+  produced. `output` reads the durable output stream, so a run's result stays readable after the
+  in-memory log buffer `utos logs` follows has been evicted.
+- **A second example, `examples/refund-request.yaml`**, with its `shared/settle-refund.yaml` sub-workflow: a model reads a customer's request and the file decides whether money moves, checking the amount against the real order and an auto-approval limit before calling payments. `examples/mocks/` holds WireMock stubs for the three services it calls, `refund-request.env` points at them, and `ticket.json` is an input for `--input @ticket.json` — enough to run it end to end against a local daemon with no real services.
+- List output aligns on visible width, ignoring colour codes, so a coloured status column does
+  not push the columns after it out of line.
+
+### Fixed
+- **Output is UTF-8 when piped or redirected.** On Windows a redirected console fell back to a legacy code page, which dropped the arrow in a transition log line and degraded inspect's tree characters and any non-ASCII text in a workflow description. The console is now UTF-8, without a BOM, on every platform.
+- **`--input @file.json` works.** `System.CommandLine` expands any `@`-prefixed argument as a response file by default, so the file was split into command-line tokens before `--input` saw it and the command failed with a usage error. The helper that reads the file was unit-tested on its own, which is why nothing caught it. Response-file expansion is now off; nothing in this CLI uses it, and `@` belongs to `--input`.
+
 ### Changed
+- **`utos logs` and `utos run --follow` print less and highlight more.** A line is now time,
+  level and message. The daemon's category — the .NET type that logged the event — is no longer
+  printed; it is an implementation detail of one daemon, and stays on the wire for `--category`.
+  The source is printed only when a sub-workflow wrote the line. With colour on, activity names
+  are bold cyan, durations dimmed, and `completed` / `failed` take their status colour.
+  Highlighting reads the message text, which is not a contract, so a line no pattern matches prints
+  exactly as sent — the styling never carries meaning a reader needs.
+- **The terminal frame is no longer printed as a log line.** It read `Execution completed` directly
+  under the executor's own completion line, which already says so with a duration. The frame still
+  ends the stream and sets the exit code, and a failure still prints its error.
+- **`FORCE_COLOR` and `CLICOLOR_FORCE` turn colour on for redirected output**, for a CI log that
+  renders ANSI or a terminal recording. `NO_COLOR` still wins.
 - **Adopts spec 0.0.14: an `onEmitted` rule carries an action.** A rule is a guard plus exactly
   one of `handle`, `transition` or `result`, where it was a flat dispatch. Only a `handle` names a
   document, so only a `handle` is an alias site — a `transition` names an activity in the

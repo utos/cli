@@ -1,0 +1,9 @@
+{
+  "request": { "method": "POST", "urlPath": "/v1/extract" },
+  "response": {
+    "status": 200,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "intent": "refund", "confidence": 0.93, "orderId": "A-1042", "amount": 32 },
+    "fixedDelayMilliseconds": 842
+  }
+}

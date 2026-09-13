@@ -35,6 +35,10 @@ sha256sum -c SHA256SUMS --ignore-missing
 | `utos load <file>` | Resolve, validate and load a workflow onto a daemon |
 | `utos run <file\|reference>` | Schedule an execution, optionally loading the file first |
 | `utos logs <execution-id>` | Stream an execution's events |
+| `utos workflow ls` | List the workflows loaded on a daemon |
+| `utos workflow rm <reference>` | Remove a loaded workflow; without a version, every loaded version |
+| `utos execution ls` | List executions, newest first, optionally `--workflow <reference>` |
+| `utos execution output <execution-id>` | Show the values and result an execution produced |
 
 ```bash
 utos context create local http://localhost:5164
@@ -46,6 +50,10 @@ utos run ./examples/hello.yaml --start greet \
 
 A command picks its daemon from `--host`, then `--context`, then `UTOS_HOST`, then the current
 context. Configuration lives in `~/.utos/config.json`, relocatable with `UTOS_CONFIG`.
+
+Output is coloured on an interactive terminal and plain when redirected. `NO_COLOR` turns colour
+off everywhere; `FORCE_COLOR` or `CLICOLOR_FORCE` turn it on for redirected output, such as a CI log
+that renders ANSI or a terminal recording.
 
 Workflows are validated before the daemon is contacted, so a broken one fails the same way
 whether or not a daemon is running.

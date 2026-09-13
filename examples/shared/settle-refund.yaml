@@ -1,0 +1,42 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: settle-refund
+  version: "2.1.0"
+  namespace: acme
+  description: Moves money. Everything that refunds calls this, so the audit trail is in one place.
+spec:
+  activities:
+    refund:
+      type: http
+      method: POST
+      url: "{{ env.PAYMENTS_BASE }}/refunds"
+      headers:
+        accept: application/json
+        idempotency-key: "{{ input.orderId }}"
+      body: '{"orderId": "{{ input.orderId }}", "amount": {{ input.amount }}}'
+      onSuccess:
+        - result:
+            settled: true
+            reference: "{{ output.reference }}"
+      onFailure:
+        # A rate limit is not a refusal. Anything else is.
+        - condition: "{{ response.status == 429 }}"
+          transition:
+            name: backoff
+            input:
+              orderId: "{{ input.orderId }}"
+              amount: "{{ input.amount }}"
+        - transition:
+            name: error
+
+    backoff:
+      type: timer
+      duration: 10s
+      onSuccess:
+        # Back-edge: the retry loop. The idempotency key makes it safe.
+        - transition:
+            name: refund
+            input:
+              orderId: "{{ input.orderId }}"
+              amount: "{{ input.amount }}"
