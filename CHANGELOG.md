@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0]
 
 ### Changed
+- **Adopts specs 0.0.15 and 0.0.16: JavaScript expressions, `return`, `error`.** A condition is a
+  bare JavaScript expression (`output.ok`, not `{{ output.ok }}`) and `{{ }}` interpolates one
+  into text; the shared validator checks the grammar at `validate` and `load`, so a Scriban
+  document fails there by name rather than at run time. A rule ends the run with `return` — with
+  a value, or bare to end with none — and fails it with `error` (`code`, `message`, `details`);
+  the `end` and `error` transition targets are gone and a document still naming them fails
+  `UTOS-T003`. **`return` is `result` on the wire**, the mapping the source-format spec makes
+  normative in 0.0.16: `return` is renamed, a bare `return` becomes an empty struct (proto3 JSON
+  would read `"result": null` as no action at all), and `result` in a source document is refused
+  (`UTOS-S009`) so authored files have one spelling. Applied to `onSuccess`, `onFailure` and
+  `onEmitted` alike. `SourceIssue` gains a `Path` in the validation corpus's notation where the
+  problem can be addressed that way. Bumped the Utos SDK packages to `0.0.16.1`
+- **The source-format conformance corpus runs in the tests** (`Fixtures/conformance/source`,
+  vendored from `utos/api` v0.0.16): every document and the `Workflow` it must map to, or the
+  `UTOS-S###` it must produce. It is what makes "does a second front-end read a document the way
+  this one does" answerable
+- Examples and the README are written in the 0.0.16 form
 - **Adopts spec 0.0.14: an `onEmitted` rule carries an action.** A rule is a guard plus exactly
   one of `handle`, `transition` or `result`, where it was a flat dispatch. Only a `handle` names a
   document, so only a `handle` is an alias site — a `transition` names an activity in the
