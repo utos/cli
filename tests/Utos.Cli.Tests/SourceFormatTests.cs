@@ -124,6 +124,7 @@ public class SourceFormatTests
     [InlineData("- return: ~")]
     [InlineData("- return: null")]
     [InlineData("- condition: \"output.done\"\n  return:")]
+    [InlineData("- { condition: \"output.done\", return }")]
     public void A_bare_return_is_an_empty_result(string rule)
     {
         // proto3 JSON would read `"result": null` as unset — a rule with no action — so "no value"
