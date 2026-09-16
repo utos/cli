@@ -16,7 +16,14 @@ namespace Utos.Cli.Core.Source;
 /// <param name="File">The file the problem is in.</param>
 /// <param name="Line">1-based line, or 0 when the problem is not tied to one.</param>
 /// <param name="Column">1-based column, or 0.</param>
-public sealed record SourceIssue(string Code, string Message, string File, int Line = 0, int Column = 0)
+/// <param name="Path">
+/// Where in the document, in the validation corpus's notation
+/// (<c>spec.activities["fetch"].onSuccess[0].result</c>), when the problem can be addressed that
+/// way; null for a problem the YAML or protobuf parser reported, which know a line but not a path.
+/// The source-format conformance corpus asserts it where present.
+/// </param>
+public sealed record SourceIssue(string Code, string Message, string File, int Line = 0, int Column = 0,
+    string? Path = null)
 {
     /// <summary>Renders as <c>file:line:col: CODE message</c>, the form editors can jump to.</summary>
     public override string ToString()

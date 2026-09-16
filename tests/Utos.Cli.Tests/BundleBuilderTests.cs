@@ -214,9 +214,9 @@ public class BundleBuilderTests : IDisposable
                   workflow: self
                   startActivity: poll
                   onEmitted:
-                    - condition: "{{ output.done }}"
+                    - condition: "output.done"
                       transition: { name: wrap-up }
-                    - result: { seen: true }
+                    - return: { seen: true }
                 poll:
                   type: http
                   method: GET
