@@ -69,7 +69,10 @@ public static class WorkflowLoader
             var name = YamlJson.Key(key);
             if (value is YamlMappingNode activity)
             {
-                rewrittenActivities.Add(key, ActivityTransform.Rewrite(activity, name, file, issues));
+                // Rules first, while onEmitted is still an activity-level key; the type transform
+                // then nests it under the call configuration.
+                var withRules = RuleTransform.Rewrite(activity, name, file, issues);
+                rewrittenActivities.Add(key, ActivityTransform.Rewrite(withRules, name, file, issues));
             }
             else
             {

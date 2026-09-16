@@ -73,14 +73,20 @@ spec:
       method: GET
       url: "{{ env.API_BASE }}/hello/{{ input.name }}"
       onSuccess:
-        - condition: "{{ output.ok }}"
-          transition: { name: end }
+        - condition: output.ok
+          return: { greeted: "{{ output.name }}" }
+        - error: { code: NOT_GREETED, message: "{{ output.error }}" }
 ```
 
-The legal `type` values are derived from the protobuf descriptor rather than hard-coded, so a new
-activity kind in the spec becomes authorable as soon as the SDK package is bumped. See
+Conditions are bare JavaScript expressions and `{{ }}` interpolates one into text. A rule ends
+the run with `return` — with a value, or bare to end with none — fails it with `error`, or
+`transition`s to another activity; there are no `end`/`error` targets. The legal `type` values
+are derived from the protobuf descriptor rather than hard-coded, so a new activity kind in the
+spec becomes authorable as soon as the SDK package is bumped. See
 [`workflow-source-format.md`](https://github.com/utos/api/blob/main/docs/workflow-source-format.md)
-for the normative mapping and [`examples/`](examples) for working files.
+for the normative mapping (`return` is `result` on the wire),
+[`template-expressions.md`](https://github.com/utos/api/blob/main/docs/template-expressions.md)
+for the language, and [`examples/`](examples) for working files.
 
 ## Errors
 
@@ -91,7 +97,7 @@ an addressable path:
 
 ```
 UTOS-T003 workflows["acme/greet:1.0.0"].spec.activities["send"].onSuccess[0].transition.name
-  Transition target 'notify' is neither an activity in this workflow nor a reserved terminal keyword (end, error).
+  Transition target 'notify' is not an activity in this workflow.
 ```
 
 `--json` on `validate` emits the same information for scripts.

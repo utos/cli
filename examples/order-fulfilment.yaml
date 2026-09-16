@@ -14,7 +14,7 @@ spec:
       method: GET
       url: "{{ env.API_BASE }}/orders/{{ input.orderId }}"
       onSuccess:
-        - condition: "{{ output.status == 'ready' }}"
+        - condition: "output.status === 'ready'"
           transition:
             name: fan-out
             input:
@@ -44,13 +44,13 @@ spec:
           forEach:
             collection: "{{ input.addons }}"
             alias: item
-          condition: "{{ item.enabled }}"
+          condition: item.enabled
           workflow: self
           startActivity: provision-addon
           input:
             sku: "{{ item.sku }}"
       onSuccess:
-        - result:
+        - return:
             fulfilled: true
 
     notify-customer:

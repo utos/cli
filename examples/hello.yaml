@@ -13,12 +13,14 @@ spec:
       headers:
         accept: application/json
       onSuccess:
-        - condition: "{{ output.ok }}"
-          transition:
-            name: end
-        - result:
+        # A condition is a bare expression; `return:` with no value ends the run.
+        - condition: output.ok
+          return:
+        - return:
             greeted: false
             reason: "{{ output.error }}"
       onFailure:
-        - transition:
-            name: error
+        # Fail with a reason of your own; `error.message` quotes the cause.
+        - error:
+            code: GREETING_FAILED
+            message: "hello service said {{ response.status }}: {{ error.message }}"
