@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.4.0]
 
+### Added
+- **A bare `error` re-raises the failure being handled** (spec `0.0.17`). `- error`, `error:`, `error: ~` and the flow-style `{ condition: x, error }` in a rule map to an empty `error`, the same way a bare `return` maps to an empty `result`. On `onFailure` it fails the path with the failure being handled, as it is, so a workflow can forward a sub-workflow's failure without renaming it. Elsewhere the validator refuses it (`UTOS-T005`). The Utos SDK pins are bumped `0.0.16.1` → `0.0.17.1`, the first validator that accepts it, and the source conformance corpus is vendored at `v0.0.17`
+
 ## [0.3.0] - 2026-09-16
 
 ### Added

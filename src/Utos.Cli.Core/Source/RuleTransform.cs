@@ -15,11 +15,18 @@ namespace Utos.Cli.Core.Source;
 /// (<c>UTOS-S009</c>), so the two spellings never coexist and the wire name never leaks into
 /// authored files.
 /// </para>
+/// <para>
+/// A bare <c>error</c> is read the same way (spec 0.0.17) and becomes an empty
+/// <c>WorkflowError</c>: the re-raise, which fails the path with the failure being handled.
+/// <c>error</c> keeps its name on the wire. Where it is legal — <c>onFailure</c> only — is the
+/// shared validator's rule (<c>UTOS-T005</c>), not this mapping's.
+/// </para>
 /// </summary>
 internal static class RuleTransform
 {
     private const string SourceKey = "return";
     private const string WireKey = "result";
+    private const string ErrorKey = "error";
 
     /// <summary>The activity-level keys whose values are rule lists, in both spellings proto3 JSON accepts.</summary>
     private static readonly IReadOnlyDictionary<string, string> RuleLists = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -71,9 +78,11 @@ internal static class RuleTransform
 
     private static YamlNode RewriteRule(YamlNode rule, string path, string file, List<SourceIssue> issues)
     {
-        // `- return`: a bare scalar item, the whole rule. The only scalar a rule may be.
+        // `- return` and `- error`: a bare scalar item, the whole rule. The only scalars a rule may be.
         if (rule is YamlScalarNode { Value: SourceKey, Style: YamlDotNet.Core.ScalarStyle.Plain })
             return new YamlMappingNode { { new YamlScalarNode(WireKey), new YamlMappingNode() } };
+        if (rule is YamlScalarNode { Value: ErrorKey, Style: YamlDotNet.Core.ScalarStyle.Plain })
+            return new YamlMappingNode { { new YamlScalarNode(ErrorKey), new YamlMappingNode() } };
 
         if (rule is not YamlMappingNode mapping)
             return rule;
@@ -94,6 +103,10 @@ internal static class RuleTransform
 
                 case SourceKey:
                     rewritten.Add(new YamlScalarNode(WireKey), IsNoValue(value) ? new YamlMappingNode() : value);
+                    break;
+
+                case ErrorKey:
+                    rewritten.Add(key, IsNoValue(value) ? new YamlMappingNode() : value);
                     break;
 
                 default:
