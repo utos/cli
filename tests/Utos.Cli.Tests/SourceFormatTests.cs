@@ -60,19 +60,23 @@ public class SourceFormatTests
               method: GET
               url: https://api.example.com
               onSuccess:
-                - condition: "{{ output.ok }}"
+                - condition: "output.ok"
                   transition:
-                    name: end
+                    name: next
               onFailure:
-                - transition: { name: error }
+                - error: { code: CALL_FAILED, message: "{{ error.message }}" }
+            next:
+              type: timer
+              duration: 1s
             """);
 
         var activity = workflow.Spec.Activities["call"];
 
         Assert.Single(activity.OnSuccess);
         Assert.Single(activity.OnFailure);
-        Assert.Equal("end", activity.OnSuccess[0].Transition.Name);
-        Assert.Equal("{{ output.ok }}", activity.OnSuccess[0].Condition);
+        Assert.Equal("next", activity.OnSuccess[0].Transition.Name);
+        Assert.Equal("output.ok", activity.OnSuccess[0].Condition);
+        Assert.Equal("CALL_FAILED", activity.OnFailure[0].Error.Code);
     }
 
     [Fact]
@@ -85,15 +89,108 @@ public class SourceFormatTests
               method: GET
               url: https://api.example.com
               on_success:
-                - transition: { name: end }
+                - return: { ok: true }
             """);
 
         Assert.Single(workflow.Spec.Activities["call"].OnSuccess);
+        Assert.True(workflow.Spec.Activities["call"].OnSuccess[0].Result.Fields["ok"].BoolValue);
+    }
+
+    [Fact]
+    public void Return_is_result_on_the_wire()
+    {
+        // The source format spells the action `return`; the wire keeps `result` because `return`
+        // is a reserved word in generated code for several languages.
+        var workflow = Parse("""
+            call:
+              type: http
+              method: GET
+              url: https://api.example.com
+              onSuccess:
+                - condition: "output.ok"
+                  return:
+                    greeted: "{{ output.name }}"
+            """);
+
+        var rule = workflow.Spec.Activities["call"].OnSuccess[0];
+
+        Assert.Equal(TransitionRule.ActionOneofCase.Result, rule.ActionCase);
+        Assert.Equal("{{ output.name }}", rule.Result.Fields["greeted"].StringValue);
+    }
+
+    [Theory]
+    [InlineData("- return")]
+    [InlineData("- return:")]
+    [InlineData("- return: ~")]
+    [InlineData("- return: null")]
+    [InlineData("- condition: \"output.done\"\n  return:")]
+    [InlineData("- { condition: \"output.done\", return }")]
+    public void A_bare_return_is_an_empty_result(string rule)
+    {
+        // proto3 JSON would read `"result": null` as unset — a rule with no action — so "no value"
+        // has to reach the bundle as an empty struct, which ends the path with no value.
+        var workflow = Parse($"""
+            call:
+              type: http
+              method: GET
+              url: https://api.example.com
+              onSuccess:
+                {rule.Replace("\n", "\n    ")}
+            """);
+
+        var parsed = workflow.Spec.Activities["call"].OnSuccess[0];
+
+        Assert.Equal(TransitionRule.ActionOneofCase.Result, parsed.ActionCase);
+        Assert.Empty(parsed.Result.Fields);
+    }
+
+    [Fact]
+    public void Maps_return_inside_onEmitted_too()
+    {
+        // The same rule shape on the consumer's emission rules, which are authored flat beside
+        // the call configuration and nested afterwards.
+        var workflow = Parse("""
+            watch:
+              type: workflow.call
+              workflow: mailbox
+              startActivity: poll
+              onEmitted:
+                - condition: "output.done"
+                  return:
+                - error: { code: BAD_VALUE }
+            """);
+
+        var rules = workflow.Spec.Activities["watch"].Workflow.Call.OnEmitted;
+
+        Assert.Equal(EmissionRule.ActionOneofCase.Result, rules[0].ActionCase);
+        Assert.Empty(rules[0].Result.Fields);
+        Assert.Equal(EmissionRule.ActionOneofCase.Error, rules[1].ActionCase);
+    }
+
+    [Fact]
+    public void Rejects_result_in_a_source_document()
+    {
+        // A valid wire field, so protobuf would accept it silently — refused here so an authored
+        // document has one spelling, and the wire name never leaks into files.
+        var error = ParseError("""
+            call:
+              type: http
+              method: GET
+              url: https://api.example.com
+              onSuccess:
+                - result: { ok: true }
+            """);
+
+        var issue = Assert.Single(error.Issues);
+        Assert.Equal(SourceCodes.DocumentMalformed, issue.Code);
+        Assert.Equal("spec.activities[\"call\"].onSuccess[0].result", issue.Path);
+        Assert.Contains("return", issue.Message);
+        Assert.True(issue.Line > 0);
     }
 
     [Theory]
     [InlineData("timer", "duration: 30s")]
-    [InlineData("promise.all", "branches:\n  - name: a\n    target: { name: call }")]
+    [InlineData("promise.all", "branches:\n  - name: a\n    workflow: pricer\n    startActivity: quote")]
     public void Supports_every_activity_kind(string type, string body)
     {
         var workflow = Parse($"""
@@ -140,7 +237,8 @@ public class SourceFormatTests
               requiredCount: 2
               branches:
                 - name: a
-                  target: { name: fan-out }
+                  workflow: self
+                  startActivity: fan-out
             """);
 
         var promise = workflow.Spec.Activities["fan-out"].Promise;
@@ -154,20 +252,30 @@ public class SourceFormatTests
     public void Accepts_onEmitted_in_both_spellings_inside_a_call()
     {
         // onEmitted is declared by CallActivityConfig, so it must reach the inner message even
-        // though the author writes it flat beside workflow/startActivity.
+        // though the author writes it flat beside workflow/startActivity. The rule's own action
+        // nests one level further, which is what lets a rule carry a transition or a result
+        // instead.
         var workflow = Parse("""
             watch:
               type: workflow.call
               workflow: mailbox
               startActivity: poll
               on_emitted:
-                - transition: { name: watch }
+                - condition: "output.done"
+                  transition: { name: wrap-up }
+                - handle:
+                    workflow: ingester
+                    startActivity: ingest
             """);
 
         var call = workflow.Spec.Activities["watch"].Workflow.Call;
 
-        Assert.Single(call.OnEmitted);
-        Assert.Equal("watch", call.OnEmitted[0].Transition.Name);
+        Assert.Equal(2, call.OnEmitted.Count);
+        Assert.Equal(EmissionRule.ActionOneofCase.Transition, call.OnEmitted[0].ActionCase);
+        Assert.Equal("wrap-up", call.OnEmitted[0].Transition.Name);
+        Assert.Equal(EmissionRule.ActionOneofCase.Handle, call.OnEmitted[1].ActionCase);
+        Assert.Equal("ingester", call.OnEmitted[1].Handle.Workflow);
+        Assert.Equal("ingest", call.OnEmitted[1].Handle.StartActivity);
     }
 
     [Theory]
@@ -199,7 +307,8 @@ public class SourceFormatTests
               requiredCount: 2
               branches:
                 - name: a
-                  target: { name: wait }
+                  workflow: self
+                  startActivity: wait
             wait:
               type: timer
               duration: 90s

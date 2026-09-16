@@ -5,7 +5,76 @@ All notable changes to the Utos CLI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.3.0]
+## [0.4.0]
+
+## [0.3.0] - 2026-09-16
+
+### Added
+- **`utos workflow ls` and `utos workflow rm`**: see and remove what is loaded on a daemon.
+  `rm` without a version removes every loaded version, as the daemon's `UnloadWorkflow` defines,
+  and a reference that matches nothing is an error rather than a quiet "removed".
+- **`utos execution ls` and `utos execution output`**: list runs, newest first, and read what one
+  produced. `output` reads the durable output stream, so a run's result stays readable after the
+  in-memory log buffer `utos logs` follows has been evicted.
+- **A second example, `examples/refund-request.yaml`**, with its `shared/settle-refund.yaml` sub-workflow: a model reads a customer's request and the file decides whether money moves, checking the amount against the real order and an auto-approval limit before calling payments. `examples/mocks/` holds WireMock stubs for the three services it calls, `refund-request.env` points at them, and `ticket.json` is an input for `--input @ticket.json` — enough to run it end to end against a local daemon with no real services.
+- List output aligns on visible width, ignoring colour codes, so a coloured status column does
+  not push the columns after it out of line.
+
+### Fixed
+- **Output is UTF-8 when piped or redirected.** On Windows a redirected console fell back to a legacy code page, which dropped the arrow in a transition log line and degraded inspect's tree characters and any non-ASCII text in a workflow description. The console is now UTF-8, without a BOM, on every platform.
+- **`--input @file.json` works.** `System.CommandLine` expands any `@`-prefixed argument as a response file by default, so the file was split into command-line tokens before `--input` saw it and the command failed with a usage error. The helper that reads the file was unit-tested on its own, which is why nothing caught it. Response-file expansion is now off; nothing in this CLI uses it, and `@` belongs to `--input`.
+
+### Changed
+- **`utos logs` and `utos run --follow` print less and highlight more.** A line is now time,
+  level and message. The daemon's category — the .NET type that logged the event — is no longer
+  printed; it is an implementation detail of one daemon, and stays on the wire for `--category`.
+  The source is printed only when a sub-workflow wrote the line. With colour on, activity names
+  are bold cyan, durations dimmed, and `completed` / `failed` take their status colour.
+  Highlighting reads the message text, which is not a contract, so a line no pattern matches prints
+  exactly as sent — the styling never carries meaning a reader needs.
+- **The terminal frame is no longer printed as a log line.** It read `Execution completed` directly
+  under the executor's own completion line, which already says so with a duration. The frame still
+  ends the stream and sets the exit code, and a failure still prints its error.
+- **`FORCE_COLOR` and `CLICOLOR_FORCE` turn colour on for redirected output**, for a CI log that
+  renders ANSI or a terminal recording. `NO_COLOR` still wins.
+- **Adopts specs 0.0.15 and 0.0.16: JavaScript expressions, `return`, `error`.** A condition is a
+  bare JavaScript expression (`output.ok`, not `{{ output.ok }}`) and `{{ }}` interpolates one
+  into text; the shared validator checks the grammar at `validate` and `load`, so a Scriban
+  document fails there by name rather than at run time. A rule ends the run with `return` — with
+  a value, or bare to end with none — and fails it with `error` (`code`, `message`, `details`);
+  the `end` and `error` transition targets are gone and a document still naming them fails
+  `UTOS-T003`. **`return` is `result` on the wire**, the mapping the source-format spec makes
+  normative in 0.0.16: `return` is renamed, a bare `return` becomes an empty struct (proto3 JSON
+  would read `"result": null` as no action at all), and `result` in a source document is refused
+  (`UTOS-S009`) so authored files have one spelling. Applied to `onSuccess`, `onFailure` and
+  `onEmitted` alike. `SourceIssue` gains a `Path` in the validation corpus's notation where the
+  problem can be addressed that way. Bumped the Utos SDK packages to `0.0.16.1`
+- **The source-format conformance corpus runs in the tests** (`Fixtures/conformance/source`,
+  vendored from `utos/api` v0.0.16): every document and the `Workflow` it must map to, or the
+  `UTOS-S###` it must produce. It is what makes "does a second front-end read a document the way
+  this one does" answerable
+- Examples and the README are written in the 0.0.16 form
+- **Adopts spec 0.0.14: an `onEmitted` rule carries an action.** A rule is a guard plus exactly
+  one of `handle`, `transition` or `result`, where it was a flat dispatch. Only a `handle` names a
+  document, so only a `handle` is an alias site — a `transition` names an activity in the
+  consuming workflow and a `result` names nothing, and rewriting either would corrupt a value that
+  was never a dependency reference. Bumped the Utos SDK packages to `0.0.14`
+- **The registry-reference error no longer carries a `UTOS-S010` code**, just its message. A
+  registry reference is valid per the source format — the document is correct and this tool has
+  not built resolution yet, so a code said the author wrote something wrong when they had not, and
+  burned a slot in a range every implementation shares. The error itself is unchanged and stays
+  until the OCI work lands. `SourceIssue.Code` is now optional for exactly this case, and renders
+  without it. See utos/api#35
+- **Adopts spec 0.0.13: dispatched work is its own document.** A promise branch and an `onEmitted`
+  rule name a document — `workflow`, `startActivity`, `input` — instead of pointing at an activity
+  in the dispatching one, so resolution now rewrites aliases at three kinds of site rather than
+  one. `PromiseBranch.target` is gone.
+- **`self` resolves to the document it is written in**, and is legal only on a promise branch
+  (`UTOS-S011`, spec 0.0.14). It is resolved exactly like an alias, which is what keeps it out of
+  the dependency graph and so out of the cycle check that would otherwise reject recursive fan-out
+  as a document depending on itself. The daemon never sees the word.
+- Every `self` in a document is reported at once rather than one per build. An author fixing one
+  site and rebuilding to discover the next is a worse experience than being told the whole list.
 
 ## [0.2.0] - 2026-08-12
 

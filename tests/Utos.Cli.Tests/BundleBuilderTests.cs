@@ -133,7 +133,14 @@ public class BundleBuilderTests : IDisposable
 
         var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
 
-        Assert.Equal(SourceCodes.RegistryUnsupported, error.Issues[0].Code);
+        // No UTOS-S code, deliberately: the document is valid and the tool is incomplete. A code
+        // would say the author wrote something wrong, and would burn a slot in a shared range for
+        // a limitation only this implementation has.
+        Assert.Empty(error.Issues[0].Code);
+        Assert.Contains("Registry resolution is not implemented yet", error.Issues[0].Message);
+
+        // And it still renders usefully without one, rather than leaving a gap where a code was.
+        Assert.DoesNotContain("  ", error.Issues[0].ToString());
     }
 
     [Fact]
@@ -156,6 +163,115 @@ public class BundleBuilderTests : IDisposable
         var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
 
         Assert.Equal(SourceCodes.DependencyAliasUnknown, error.Issues[0].Code);
+    }
+
+    [Fact]
+    public void A_promise_branch_may_name_self_and_it_resolves_to_this_document()
+    {
+        // The reason `self` exists. Recursive fan-out is otherwise inexpressible: a document
+        // reaching itself through an alias is a cycle (UTOS-S005), so there is nothing to declare.
+        // It resolves like any alias, which is what keeps the word out of the bundle.
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              activities:
+                walk:
+                  type: promise.all
+                  branches:
+                    - name: child
+                      workflow: self
+                      startActivity: walk
+            """);
+
+        var bundle = BundleBuilder.Build(entry);
+
+        var branch = bundle.Bundle.Workflows["root:1.0.0"].Spec.Activities["walk"].Promise.Branches[0];
+
+        Assert.Equal("root:1.0.0", branch.Workflow);
+    }
+
+    [Fact]
+    public void An_onEmitted_rule_that_is_not_a_handle_is_left_alone()
+    {
+        // Only a handle names a document. A transition names an activity in this workflow and a
+        // result names nothing, so neither is an alias site — and resolving one anyway would
+        // either report a perfectly good activity name as an undeclared dependency, or rewrite it
+        // to a canonical identity that names no activity at all.
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              activities:
+                watch:
+                  type: workflow.call
+                  workflow: self
+                  startActivity: poll
+                  onEmitted:
+                    - condition: "output.done"
+                      transition: { name: wrap-up }
+                    - return: { seen: true }
+                poll:
+                  type: http
+                  method: GET
+                  url: https://api.example.com/poll
+                wrap-up:
+                  type: http
+                  method: POST
+                  url: https://api.example.com/wrap-up
+            """);
+
+        // `workflow: self` on the call activity is still rejected (UTOS-S011); what matters here
+        // is that the two rules contribute nothing of their own.
+        var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
+
+        var issue = Assert.Single(error.Issues);
+        Assert.Equal(SourceCodes.SelfNotAllowedHere, issue.Code);
+        Assert.Contains("Activity 'watch'", issue.Message);
+    }
+
+    [Fact]
+    public void An_onEmitted_rule_may_not_name_self()
+    {
+        // UTOS-S011. In the consumer's own graph a handler can transition to the call activity
+        // that dispatched it, and in the handler's own execution — which holds no subscription —
+        // that starts a second producer rather than resuming the first, once per value. Requiring
+        // a document is what makes that unreachable rather than merely discouraged.
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              activities:
+                watch:
+                  type: workflow.call
+                  workflow: self
+                  startActivity: poll
+                  onEmitted:
+                    - handle:
+                        workflow: self
+                        startActivity: handle
+                handle:
+                  type: http
+                  method: GET
+                  url: https://api.example.com/ingest
+            """);
+
+        var error = Assert.Throws<WorkflowSourceException>(() => BundleBuilder.Build(entry));
+
+        // Both sites are reported, not just the first: an author fixing one and rebuilding to find
+        // the other is a worse experience than being told once.
+        Assert.Equal(2, error.Issues.Count);
+        Assert.All(error.Issues, i => Assert.Equal(SourceCodes.SelfNotAllowedHere, i.Code));
+        Assert.Contains(error.Issues, i => i.Message.Contains("onEmitted handler"));
     }
 
     [Fact]

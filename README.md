@@ -35,6 +35,10 @@ sha256sum -c SHA256SUMS --ignore-missing
 | `utos load <file>` | Resolve, validate and load a workflow onto a daemon |
 | `utos run <file\|reference>` | Schedule an execution, optionally loading the file first |
 | `utos logs <execution-id>` | Stream an execution's events |
+| `utos workflow ls` | List the workflows loaded on a daemon |
+| `utos workflow rm <reference>` | Remove a loaded workflow; without a version, every loaded version |
+| `utos execution ls` | List executions, newest first, optionally `--workflow <reference>` |
+| `utos execution output <execution-id>` | Show the values and result an execution produced |
 
 ```bash
 utos context create local http://localhost:5164
@@ -46,6 +50,10 @@ utos run ./examples/hello.yaml --start greet \
 
 A command picks its daemon from `--host`, then `--context`, then `UTOS_HOST`, then the current
 context. Configuration lives in `~/.utos/config.json`, relocatable with `UTOS_CONFIG`.
+
+Output is coloured on an interactive terminal and plain when redirected. `NO_COLOR` turns colour
+off everywhere; `FORCE_COLOR` or `CLICOLOR_FORCE` turn it on for redirected output, such as a CI log
+that renders ANSI or a terminal recording.
 
 Workflows are validated before the daemon is contacted, so a broken one fails the same way
 whether or not a daemon is running.
@@ -73,14 +81,20 @@ spec:
       method: GET
       url: "{{ env.API_BASE }}/hello/{{ input.name }}"
       onSuccess:
-        - condition: "{{ output.ok }}"
-          transition: { name: end }
+        - condition: output.ok
+          return: { greeted: "{{ output.name }}" }
+        - error: { code: NOT_GREETED, message: "{{ output.error }}" }
 ```
 
-The legal `type` values are derived from the protobuf descriptor rather than hard-coded, so a new
-activity kind in the spec becomes authorable as soon as the SDK package is bumped. See
+Conditions are bare JavaScript expressions and `{{ }}` interpolates one into text. A rule ends
+the run with `return` — with a value, or bare to end with none — fails it with `error`, or
+`transition`s to another activity; there are no `end`/`error` targets. The legal `type` values
+are derived from the protobuf descriptor rather than hard-coded, so a new activity kind in the
+spec becomes authorable as soon as the SDK package is bumped. See
 [`workflow-source-format.md`](https://github.com/utos/api/blob/main/docs/workflow-source-format.md)
-for the normative mapping and [`examples/`](examples) for working files.
+for the normative mapping (`return` is `result` on the wire),
+[`template-expressions.md`](https://github.com/utos/api/blob/main/docs/template-expressions.md)
+for the language, and [`examples/`](examples) for working files.
 
 ## Errors
 
@@ -91,7 +105,7 @@ an addressable path:
 
 ```
 UTOS-T003 workflows["acme/greet:1.0.0"].spec.activities["send"].onSuccess[0].transition.name
-  Transition target 'notify' is neither an activity in this workflow nor a reserved terminal keyword (end, error).
+  Transition target 'notify' is not an activity in this workflow.
 ```
 
 `--json` on `validate` emits the same information for scripts.
@@ -130,3 +144,20 @@ console output is a few dozen lines of ANSI rather than a rendering library.
 Validation is not implemented here. It lives in `Utos.Workflow.Validation`, shared with the
 daemon and driven by the conformance fixtures in `utos/api`, so a workflow one tool accepts cannot
 be rejected by another.
+
+There is no `utos build`. A bundle is a wire payload rather than a distributable artifact, so
+resolution is a stage inside `validate` and `load`, and `inspect` shows the result — nothing writes
+a bundle to disk.
+
+`src/Utos.Cli` owns the console — commands, output, exit codes — and `src/Utos.Cli.Core` owns the
+pipeline and the daemon client and knows nothing about it. The split is load-bearing rather than
+tidy: everything in `Core` has to be callable from a test with no terminal, so it returns values
+and throws instead of writing to `Console`.
+
+Two things that will bite a contributor otherwise. The protobuf C# namespace is
+`Utos.Workflows.V1` — **plural** — while the wire package is `utos.workflow.v1`, singular. A
+singular namespace would shadow the `Workflow` message type for anything under `Utos.*`, and a
+using-alias cannot fix it, because C# resolves simple names through enclosing namespaces before
+using-directives. And a test project must not reference `Utos.Daemon.Server` alongside
+`Utos.Daemon.Client`: the two define the same gRPC service types and cannot coexist in one
+assembly.

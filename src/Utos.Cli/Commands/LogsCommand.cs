@@ -1,6 +1,7 @@
 using System.CommandLine;
 using Grpc.Core;
 using Utos.Cli.Core.Daemon;
+using Utos.Cli.Core.Rendering;
 using Utos.Daemon.V1;
 
 namespace Utos.Cli.Commands;
@@ -63,9 +64,15 @@ internal static class LogsCommand
         {
             await foreach (var e in call.ResponseStream.ReadAllAsync(cancellationToken))
             {
-                Write(e);
-
-                if (!e.HasStatus) continue;
+                // The terminal frame is how the stream ends, not something to read: its message is
+                // a bare "Execution completed" directly under the executor's own completion line,
+                // which already says so with a duration. Its status is still acted on below, and a
+                // failure still prints its error.
+                if (!e.HasStatus)
+                {
+                    Write(e);
+                    continue;
+                }
 
                 if (e.Status == ExecutionStatus.Failed)
                 {
@@ -90,20 +97,9 @@ internal static class LogsCommand
         return outcome;
     }
 
-    private static void Write(WatchExecutionResponse e)
-    {
-        var time = e.Timestamp?.ToDateTimeOffset().ToLocalTime().ToString("HH:mm:ss") ?? "--:--:--";
-        var level = e.Level switch
-        {
-            LogLevel.Error or LogLevel.Fatal => Output.Red(e.Level.ToString().ToUpperInvariant()),
-            LogLevel.Warn => Output.Yellow("WARN"),
-            LogLevel.Unspecified => "     ",
-            _ => e.Level.ToString().ToUpperInvariant(),
-        };
-
-        var scope = e.HasCategory ? $"{e.Source}/{e.Category}" : e.Source;
-        Output.Line($"{Output.Dim(time)} {level,-5} {Output.Dim(scope)}  {e.Message}");
-    }
+    private static void Write(WatchExecutionResponse e) =>
+        Output.Line(LogLine.Format(
+            e.Timestamp?.ToDateTimeOffset().ToLocalTime(), e.Level, e.Source, e.Message, Output.Enabled));
 
     private static LogLevel ParseLevel(string value) => value.ToLowerInvariant() switch
     {

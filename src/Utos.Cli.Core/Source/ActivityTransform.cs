@@ -75,11 +75,13 @@ internal static class ActivityTransform
             if (YamlJson.Key(key) == TypeKey) typeNode = value;
         }
 
+        var typePath = $"spec.activities[\"{activityName}\"].{TypeKey}";
+
         if (typeNode is not YamlScalarNode { Value: { Length: > 0 } typeName })
         {
             issues.Add(new SourceIssue(SourceCodes.ActivityTypeInvalid,
                 $"Activity '{activityName}' has no 'type'. Expected one of: {string.Join(", ", KnownTypes)}.",
-                file, (int)activity.Start.Line, (int)activity.Start.Column));
+                file, (int)activity.Start.Line, (int)activity.Start.Column, typePath));
             return activity;
         }
 
@@ -90,7 +92,7 @@ internal static class ActivityTransform
             issues.Add(new SourceIssue(SourceCodes.ActivityTypeInvalid,
                 $"Activity '{activityName}' has unknown type '{typeName}'. Expected one of: "
                 + string.Join(", ", KnownTypes) + ".",
-                file, (int)typeNode.Start.Line, (int)typeNode.Start.Column));
+                file, (int)typeNode.Start.Line, (int)typeNode.Start.Column, typePath));
             return activity;
         }
 

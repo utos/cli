@@ -9,9 +9,9 @@
       Utos SDK. Utos.Daemon.Server is deliberately absent: it defines the same utos.daemon.v1
       service types as the client and the two cannot coexist in one assembly.
     -->
-    <PackageVersion Include="Utos.Workflow" Version="0.0.12" />
-    <PackageVersion Include="Utos.Workflow.Validation" Version="0.0.12" />
-    <PackageVersion Include="Utos.Daemon.Client" Version="0.0.12" />
+    <PackageVersion Include="Utos.Workflow" Version="0.0.16.1" />
+    <PackageVersion Include="Utos.Workflow.Validation" Version="0.0.16.1" />
+    <PackageVersion Include="Utos.Daemon.Client" Version="0.0.16.1" />
 
     <!-- Transport. The SDK ships no transport of its own. -->
     <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />
@@ -23,13 +23,13 @@
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
 
     <!-- Command-line parsing. AOT-friendly by design; Spectre.Console.Cli is not. -->
-    <PackageVersion Include="System.CommandLine" Version="2.0.11" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
 
   <ItemGroup Label="Test-only">
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
   </ItemGroup>
 
 </Project>
