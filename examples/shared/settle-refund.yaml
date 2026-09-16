@@ -16,19 +16,23 @@ spec:
         idempotency-key: "{{ input.orderId }}"
       body: '{"orderId": "{{ input.orderId }}", "amount": {{ input.amount }}}'
       onSuccess:
-        - result:
+        - return:
             settled: true
             reference: "{{ output.reference }}"
       onFailure:
         # A rate limit is not a refusal. Anything else is.
-        - condition: "{{ response.status == 429 }}"
+        - condition: "response.status === 429"
           transition:
             name: backoff
             input:
               orderId: "{{ input.orderId }}"
               amount: "{{ input.amount }}"
-        - transition:
-            name: error
+        - error:
+            code: REFUND_REFUSED
+            message: "payments answered {{ response.status }}: {{ error.message }}"
+            details:
+              orderId: "{{ input.orderId }}"
+              status: "{{ response.status }}"
 
     backoff:
       type: timer

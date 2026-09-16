@@ -19,7 +19,7 @@ spec:
         accept: application/json
       body: '{"schema": "refund-request", "text": "{{ input.message }}"}'
       onSuccess:
-        - condition: "{{ output.confidence >= 0.8 && output.intent == 'refund' }}"
+        - condition: "output.confidence >= 0.8 && output.intent === 'refund'"
           transition:
             name: check-policy
             input:
@@ -27,12 +27,13 @@ spec:
               amount: "{{ output.amount }}"
         # Anything the model was unsure about becomes a person's problem, not a
         # guess. No condition, so this is the fallback.
-        - result:
+        - return:
             escalated: true
             reason: unclear request
       onFailure:
-        - transition:
-            name: error
+        - error:
+            code: MODEL_UNAVAILABLE
+            message: "the model did not answer: {{ error.message }}"
 
     # The amount the model produced is checked against the real order before it
     # can move any money. First match wins, so order is the policy.
@@ -43,23 +44,28 @@ spec:
       headers:
         accept: application/json
       onSuccess:
-        - condition: "{{ output.refundable && input.amount <= output.orderTotal && input.amount <= 50 }}"
+        - condition: "output.refundable && input.amount <= output.orderTotal && input.amount <= 50"
           transition:
             name: settle
             input:
               orderId: "{{ input.orderId }}"
               amount: "{{ input.amount }}"
-        - condition: "{{ output.refundable }}"
-          result:
+        - condition: output.refundable
+          return:
             refunded: false
             escalated: true
             reason: over the auto-approval limit
-        - result:
+        - return:
             refunded: false
             reason: outside refund policy
       onFailure:
-        - transition:
-            name: error
+        - condition: "response.status === 404"
+          error:
+            code: ORDER_NOT_FOUND
+            message: "order {{ input.orderId }} does not exist"
+        - error:
+            code: POLICY_CHECK_FAILED
+            message: "{{ error.message }}"
 
     settle:
       type: workflow.call
@@ -69,9 +75,8 @@ spec:
         orderId: "{{ input.orderId }}"
         amount: "{{ input.amount }}"
       onSuccess:
-        - result:
+        - return:
             refunded: true
             reference: "{{ output.reference }}"
-      onFailure:
-        - transition:
-            name: error
+      # No onFailure: the sub-workflow fails with a code of its own (REFUND_REFUSED),
+      # and an unhandled failure propagates exactly as authored.
