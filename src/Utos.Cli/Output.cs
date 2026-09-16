@@ -1,3 +1,5 @@
+using Utos.Cli.Core.Rendering;
+
 namespace Utos.Cli;
 
 /// <summary>Process exit codes. Distinct enough for a script to branch on.</summary>
@@ -32,17 +34,16 @@ public static class ExitCodes
 /// </summary>
 public static class Output
 {
-    private static readonly bool Colour =
+    /// <summary>
+    /// Whether output is styled. <c>NO_COLOR</c> always wins. Otherwise colour is on for an
+    /// interactive terminal, and can be forced with <c>FORCE_COLOR</c> or <c>CLICOLOR_FORCE</c> for
+    /// the cases where redirected output is still headed for a screen — a CI log that renders ANSI,
+    /// or a recording.
+    /// </summary>
+    public static bool Enabled { get; } =
         Environment.GetEnvironmentVariable("NO_COLOR") is null
-        && Environment.GetEnvironmentVariable("TERM") != "dumb"
-        && !Console.IsOutputRedirected;
-
-    private const string Reset = "\u001b[0m";
-    private const string RedCode = "\u001b[31m";
-    private const string YellowCode = "\u001b[33m";
-    private const string GreenCode = "\u001b[32m";
-    private const string DimCode = "\u001b[2m";
-    private const string BoldCode = "\u001b[1m";
+        && (Forced("FORCE_COLOR") || Forced("CLICOLOR_FORCE")
+            || (Environment.GetEnvironmentVariable("TERM") != "dumb" && !Console.IsOutputRedirected));
 
     /// <summary>Writes a line to stdout.</summary>
     public static void Line(string text = "") => Console.Out.WriteLine(text);
@@ -51,19 +52,21 @@ public static class Output
     public static void ErrorLine(string text) => Console.Error.WriteLine(text);
 
     /// <summary>Red, for failures.</summary>
-    public static string Red(string text) => Wrap(RedCode, text);
+    public static string Red(string text) => Ansi.Wrap(Ansi.Red, text, Enabled);
 
     /// <summary>Yellow, for warnings.</summary>
-    public static string Yellow(string text) => Wrap(YellowCode, text);
+    public static string Yellow(string text) => Ansi.Wrap(Ansi.Yellow, text, Enabled);
 
     /// <summary>Green, for success.</summary>
-    public static string Green(string text) => Wrap(GreenCode, text);
+    public static string Green(string text) => Ansi.Wrap(Ansi.Green, text, Enabled);
 
     /// <summary>Dimmed, for secondary detail.</summary>
-    public static string Dim(string text) => Wrap(DimCode, text);
+    public static string Dim(string text) => Ansi.Wrap(Ansi.Dim, text, Enabled);
 
     /// <summary>Bold, for emphasis.</summary>
-    public static string Bold(string text) => Wrap(BoldCode, text);
+    public static string Bold(string text) => Ansi.Wrap(Ansi.Bold, text, Enabled);
 
-    private static string Wrap(string code, string text) => Colour ? code + text + Reset : text;
+    /// <summary>Set, and not the conventional "off" value.</summary>
+    private static bool Forced(string name) =>
+        Environment.GetEnvironmentVariable(name) is { Length: > 0 } value && value != "0";
 }

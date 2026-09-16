@@ -1,0 +1,82 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: refund-request
+  version: "1.0.0"
+  namespace: acme
+  description: A customer asks for a refund. A model reads the request; this file decides what happens.
+spec:
+  dependencies:
+    payments: ./shared/settle-refund.yaml
+
+  activities:
+    # The model interprets free text. It is trusted to read, never to authorise.
+    assess:
+      type: http
+      method: POST
+      url: "{{ env.MODEL_BASE }}/v1/extract"
+      headers:
+        accept: application/json
+      body: '{"schema": "refund-request", "text": "{{ input.message }}"}'
+      onSuccess:
+        - condition: "output.confidence >= 0.8 && output.intent === 'refund'"
+          transition:
+            name: check-policy
+            input:
+              orderId: "{{ output.orderId }}"
+              amount: "{{ output.amount }}"
+        # Anything the model was unsure about becomes a person's problem, not a
+        # guess. No condition, so this is the fallback.
+        - return:
+            escalated: true
+            reason: unclear request
+      onFailure:
+        - error:
+            code: MODEL_UNAVAILABLE
+            message: "the model did not answer: {{ error.message }}"
+
+    # The amount the model produced is checked against the real order before it
+    # can move any money. First match wins, so order is the policy.
+    check-policy:
+      type: http
+      method: GET
+      url: "{{ env.API_BASE }}/orders/{{ input.orderId }}/refundability"
+      headers:
+        accept: application/json
+      onSuccess:
+        - condition: "output.refundable && input.amount <= output.orderTotal && input.amount <= 50"
+          transition:
+            name: settle
+            input:
+              orderId: "{{ input.orderId }}"
+              amount: "{{ input.amount }}"
+        - condition: output.refundable
+          return:
+            refunded: false
+            escalated: true
+            reason: over the auto-approval limit
+        - return:
+            refunded: false
+            reason: outside refund policy
+      onFailure:
+        - condition: "response.status === 404"
+          error:
+            code: ORDER_NOT_FOUND
+            message: "order {{ input.orderId }} does not exist"
+        - error:
+            code: POLICY_CHECK_FAILED
+            message: "{{ error.message }}"
+
+    settle:
+      type: workflow.call
+      workflow: payments
+      startActivity: refund
+      input:
+        orderId: "{{ input.orderId }}"
+        amount: "{{ input.amount }}"
+      onSuccess:
+        - return:
+            refunded: true
+            reference: "{{ output.reference }}"
+      # No onFailure: the sub-workflow fails with a code of its own (REFUND_REFUSED),
+      # and an unhandled failure propagates exactly as authored.

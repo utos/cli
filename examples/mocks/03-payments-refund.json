@@ -1,0 +1,9 @@
+{
+  "request": { "method": "POST", "urlPath": "/refunds" },
+  "response": {
+    "status": 201,
+    "headers": { "Content-Type": "application/json" },
+    "jsonBody": { "reference": "rf_8Kq2Lm", "status": "settled" },
+    "fixedDelayMilliseconds": 311
+  }
+}
