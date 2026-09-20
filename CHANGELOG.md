@@ -11,7 +11,7 @@ does in `utos/dapr-daemon` and `utos/sdk-dotnet`. If the spec reaches `0.20` and
 this CLI has not implemented it, it stays at `0.19.x` — which is then a true
 statement about what it supports rather than a number a pipeline invented.
 
-## [0.19.0]
+## [0.19.0] - 2026-09-20
 
 ### Changed
 
