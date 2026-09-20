@@ -5,9 +5,23 @@ All notable changes to the Utos CLI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0]
+**Version parity across the Utos repos: the minor is the contract, the patch is
+this CLI's own.** `0.19.x` here means *implements spec 0.19*, the same way it
+does in `utos/dapr-daemon` and `utos/sdk-dotnet`. If the spec reaches `0.20` and
+this CLI has not implemented it, it stays at `0.19.x` — which is then a true
+statement about what it supports rather than a number a pipeline invented.
+
+## [0.19.0]
 
 ### Changed
+
+- **Version parity: the unreleased `0.4.0` becomes `0.19.0`** (spec `0.19.0`). The CLI was heading
+  for `0.4.0` while the spec was at `0.0.18` and `utos/dapr-daemon` at `0.1.0`, so no version
+  number said which spec this CLI spoke. From here the minor is the contract and the patch is this
+  repo's own, so `0.19.1` is a CLI fix against the same spec and `0.20.0` follows a spec that
+  moved. Nothing is skipped: the CLI adopts the spec's line, which had eighteen releases behind it,
+  and `0.19.0` is the smallest number that lets every Utos repo move forward onto it — this one was
+  already past `0.1.0`, and neither a package registry nor a git tag can be reused
 
 - **The source format is read from `Utos.Workflow.Source` rather than from a copy here.** The
   mapping onto `utos.workflow.v1.Workflow` is normative — the spec defines it and
@@ -21,8 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `IL2026`, `IL3050` and `IL3053`. The constraint now holds upstream as well: `sdk-dotnet` targets
   `net10.0` since `0.0.18.2`, so `IsAotCompatible` works there and the analyzer runs on the
   assemblies this binary links — which it could not while they targeted `netstandard2.0`
-- Utos SDK pins `0.0.17.1` → `0.0.18.2`, which also brings the schema rules the validator gained
-  for spec `0.0.18` (`UTOS-H001`–`H014`) and the short-form compiler
+- Utos SDK pins `0.0.17.1` → `0.19.0`, which also brings the schema rules the validator gained
+  for spec `0.0.18` (`UTOS-H001`–`H014`) and the short-form compiler. A `0.19.0` CLI depending on
+  `0.0.18.x` packages would claim a spec line its own dependencies contradict, which is the
+  dishonesty version parity exists to remove
 
 ### Added
 
