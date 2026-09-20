@@ -10,10 +10,10 @@
   -->
   <ItemGroup>
     <PackageReference Include="Utos.Workflow" />
+    <PackageReference Include="Utos.Workflow.Source" />
     <PackageReference Include="Utos.Workflow.Validation" />
     <PackageReference Include="Utos.Daemon.Client" />
     <PackageReference Include="Grpc.Net.Client" />
-    <PackageReference Include="YamlDotNet" />
   </ItemGroup>
 
 </Project>

@@ -1,4 +1,4 @@
-using Utos.Cli.Core.Source;
+using Utos.Workflows.V1.Source;
 using Utos.Workflows.V1;
 using Xunit;
 

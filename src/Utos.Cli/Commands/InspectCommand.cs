@@ -1,6 +1,6 @@
 using System.CommandLine;
 using Utos.Cli.Core.Build;
-using Utos.Cli.Core.Source;
+using Utos.Workflows.V1.Source;
 using Utos.Workflows.V1;
 
 namespace Utos.Cli.Commands;
@@ -54,6 +54,11 @@ internal static class InspectCommand
         // The digest format is still provisional upstream, so it is shown for inspection but never
         // sent as a guard on daemon calls.
         Output.Line($"digest  {Output.Dim(built.Bundle.ComputeContentDigest())}");
+
+        // What the workflow declares about the data crossing its boundaries. Nothing is printed
+        // when it declares none, which is most workflows and is not a deficiency.
+        Contract.Write(built.Bundle);
+
         return ExitCodes.Success;
     }
 

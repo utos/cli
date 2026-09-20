@@ -5,7 +5,56 @@ All notable changes to the Utos CLI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.4.0]
+**Version parity across the Utos repos: the minor is the contract, the patch is
+this CLI's own.** `0.19.x` here means *implements spec 0.19*, the same way it
+does in `utos/dapr-daemon` and `utos/sdk-dotnet`. If the spec reaches `0.20` and
+this CLI has not implemented it, it stays at `0.19.x` — which is then a true
+statement about what it supports rather than a number a pipeline invented.
+
+## [0.19.0] - 2026-09-20
+
+### Changed
+
+- **Version parity: the unreleased `0.4.0` becomes `0.19.0`** (spec `0.19.0`). The CLI was heading
+  for `0.4.0` while the spec was at `0.0.18` and `utos/dapr-daemon` at `0.1.0`, so no version
+  number said which spec this CLI spoke. From here the minor is the contract and the patch is this
+  repo's own, so `0.19.1` is a CLI fix against the same spec and `0.20.0` follows a spec that
+  moved. Nothing is skipped: the CLI adopts the spec's line, which had eighteen releases behind it,
+  and `0.19.0` is the smallest number that lets every Utos repo move forward onto it — this one was
+  already past `0.1.0`, and neither a package registry nor a git tag can be reused
+
+- **The source format is read from `Utos.Workflow.Source` rather than from a copy here.** The
+  mapping onto `utos.workflow.v1.Workflow` is normative — the spec defines it and
+  `api/conformance/source/` exists to prove two front ends agree on it — and it lived in this one
+  front end. The hub's upload path reads the same documents, so the alternative was a second
+  implementation of it. **1089 lines deleted against 11 added**, and `YamlDotNet` goes with them:
+  reading YAML was the mapping's business, not the CLI's. The source conformance corpus moves too,
+  and now runs in `sdk-dotnet` against the copy the release pipeline vendors from the spec tag
+  rather than here against a hand-vendored fixture that could drift from it
+- **NativeAOT is unaffected, which was the risk worth checking.** The publish still reports zero
+  `IL2026`, `IL3050` and `IL3053`. The constraint now holds upstream as well: `sdk-dotnet` targets
+  `net10.0` since `0.0.18.2`, so `IsAotCompatible` works there and the analyzer runs on the
+  assemblies this binary links — which it could not while they targeted `netstandard2.0`
+- Utos SDK pins `0.0.17.1` → `0.19.0`, which also brings the schema rules the validator gained
+  for spec `0.0.18` (`UTOS-H001`–`H014`) and the short-form compiler. A `0.19.0` CLI depending on
+  `0.0.18.x` packages would claim a spec line its own dependencies contradict, which is the
+  dishonesty version parity exists to remove
+
+### Added
+
+- **`utos inspect` shows the workflow's contract** (spec `0.0.18`): `spec.env`, `spec.output`,
+  `spec.emits`, and the input each activity accepts. Every activity that declares one, not just a
+  chosen entry point — a run is scheduled with a start activity and its input goes to *that*
+  activity, so a document with three entry points has three input shapes. Rendered in the short
+  form's spelling rather than as the JSON Schema it compiled to: `watermark?: string | null` is
+  what the author wrote, where the bundle holds `{"type": ["string", "null"]}`. A workflow that
+  declares nothing prints nothing, since a row reading "none" would suggest a document had said
+  something it did not
+- **`utos validate` reports the schema short form's own defects** — `UTOS-S012` (one property
+  declared both required and optional, `x` alongside `x?`), `UTOS-S013` (a type outside the
+  registry) and `UTOS-S014` (a constraint that does not apply to the declared type) — with a file
+  and a line, like every other source-format issue
+- **A bare `error` re-raises the failure being handled** (spec `0.0.17`). `- error`, `error:`, `error: ~` and the flow-style `{ condition: x, error }` in a rule map to an empty `error`, the same way a bare `return` maps to an empty `result`. On `onFailure` it fails the path with the failure being handled, as it is, so a workflow can forward a sub-workflow's failure without renaming it. Elsewhere the validator refuses it (`UTOS-T005`). The Utos SDK pins are bumped `0.0.16.1` → `0.0.17.1`, the first validator that accepts it, and the source conformance corpus is vendored at `v0.0.17`
 
 ## [0.3.0] - 2026-09-16
 
