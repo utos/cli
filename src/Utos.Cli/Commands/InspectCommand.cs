@@ -1,6 +1,6 @@
 using System.CommandLine;
 using Utos.Cli.Core.Build;
-using Utos.Cli.Core.Source;
+using Utos.Workflows.V1.Source;
 using Utos.Workflows.V1;
 
 namespace Utos.Cli.Commands;

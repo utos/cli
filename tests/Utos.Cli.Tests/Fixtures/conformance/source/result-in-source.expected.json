@@ -1,1 +1,0 @@
-{ "issues": [ { "code": "UTOS-S009", "path": "spec.activities[\"say-hello\"].onSuccess[0].result" } ] }
