@@ -9,10 +9,10 @@
       Utos SDK. Utos.Daemon.Server is deliberately absent: it defines the same utos.daemon.v1
       service types as the client and the two cannot coexist in one assembly.
     -->
-    <PackageVersion Include="Utos.Workflow" Version="0.0.18.2" />
-    <PackageVersion Include="Utos.Workflow.Source" Version="0.0.18.2" />
-    <PackageVersion Include="Utos.Workflow.Validation" Version="0.0.18.2" />
-    <PackageVersion Include="Utos.Daemon.Client" Version="0.0.18.2" />
+    <PackageVersion Include="Utos.Workflow" Version="0.19.0" />
+    <PackageVersion Include="Utos.Workflow.Source" Version="0.19.0" />
+    <PackageVersion Include="Utos.Workflow.Validation" Version="0.19.0" />
+    <PackageVersion Include="Utos.Daemon.Client" Version="0.19.0" />
 
     <!-- Transport. The SDK ships no transport of its own. -->
     <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />

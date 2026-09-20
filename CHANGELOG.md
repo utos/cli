@@ -35,8 +35,10 @@ statement about what it supports rather than a number a pipeline invented.
   `IL2026`, `IL3050` and `IL3053`. The constraint now holds upstream as well: `sdk-dotnet` targets
   `net10.0` since `0.0.18.2`, so `IsAotCompatible` works there and the analyzer runs on the
   assemblies this binary links — which it could not while they targeted `netstandard2.0`
-- Utos SDK pins `0.0.17.1` → `0.0.18.2`, which also brings the schema rules the validator gained
-  for spec `0.0.18` (`UTOS-H001`–`H014`) and the short-form compiler
+- Utos SDK pins `0.0.17.1` → `0.19.0`, which also brings the schema rules the validator gained
+  for spec `0.0.18` (`UTOS-H001`–`H014`) and the short-form compiler. A `0.19.0` CLI depending on
+  `0.0.18.x` packages would claim a spec line its own dependencies contradict, which is the
+  dishonesty version parity exists to remove
 
 ### Added
 
