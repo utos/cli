@@ -17,12 +17,6 @@
     <!-- Transport. The SDK ships no transport of its own. -->
     <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />
 
-    <!--
-      Front-end. YamlDotNet is used only for its node graph (YamlStream/YamlDocument), never its
-      reflection-based object deserializer, which would not survive trimming.
-    -->
-    <PackageVersion Include="YamlDotNet" Version="18.1.0" />
-
     <!-- Command-line parsing. AOT-friendly by design; Spectre.Console.Cli is not. -->
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
