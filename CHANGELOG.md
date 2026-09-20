@@ -11,6 +11,27 @@ does in `utos/dapr-daemon` and `utos/sdk-dotnet`. If the spec reaches `0.20` and
 this CLI has not implemented it, it stays at `0.19.x` — which is then a true
 statement about what it supports rather than a number a pipeline invented.
 
+## [Unreleased]
+
+### Added
+
+- **The minor-version parity is enforced in CI rather than documented and hoped for.**
+  `SPEC_VERSION` names the spec this CLI implements, and `scripts/check-version-parity.sh` runs
+  first in the build: the minor of the top `CHANGELOG.md` version must equal it, and every
+  `Utos.*` pin must be on that same minor. Until now the invariant was one typo away from being
+  silently false — a heading naming `0.20.0` against a spec still at `0.19` would have released
+  without a word
+
+### Fixed
+
+- **The design notes described a dependency the CLI no longer has.** They explained why YAML is
+  read through `YamlDotNet`'s node graph rather than its object deserializer — true while the
+  source-format mapping lived here, and untrue since `0.19.0` moved it to `Utos.Workflow.Source`.
+  The unused `YamlDotNet` pin went with them: central package management kept the version and its
+  rationale alive after the last reference was deleted, so nothing failed to tell us. The notes now
+  say what is true — that neither reading a document nor judging a bundle is implemented here, and
+  why both live in packages every tool shares
+
 ## [0.19.0] - 2026-09-20
 
 ### Changed
