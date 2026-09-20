@@ -137,13 +137,17 @@ dotnet publish src/Utos.Cli/Utos.Cli.csproj -c Release -r win-x64
 
 The CLI ships as **NativeAOT single-file binaries**, which constrains its dependencies: anything
 resolving types by reflection at run time is out. That is why parsing uses `System.CommandLine`
-rather than `Spectre.Console.Cli`, why YAML is read through YamlDotNet's node graph rather than
-its object deserializer, why configuration is JSON with source-generated serialization, and why
-console output is a few dozen lines of ANSI rather than a rendering library.
+rather than `Spectre.Console.Cli`, why configuration is JSON with source-generated serialization,
+and why console output is a few dozen lines of ANSI rather than a rendering library. The
+constraint reaches the SDK packages too, which are AOT-analysed on every build so a regression
+here surfaces there rather than at this binary's publish.
 
-Validation is not implemented here. It lives in `Utos.Workflow.Validation`, shared with the
-daemon and driven by the conformance fixtures in `utos/api`, so a workflow one tool accepts cannot
-be rejected by another.
+**Neither reading a document nor judging a bundle is implemented here.** Both are defined
+normatively by the spec, so both live in packages every tool shares: `Utos.Workflow.Source` turns
+authored YAML into a `Workflow` and reports what only a document can get wrong (`UTOS-S###`), and
+`Utos.Workflow.Validation` judges the resulting bundle. Both are driven by the conformance
+fixtures in `utos/api`, so a workflow one tool accepts cannot be rejected by another — and the
+registry's upload path reads documents through the same code this does.
 
 There is no `utos build`. A bundle is a wire payload rather than a distributable artifact, so
 resolution is a stage inside `validate` and `load`, and `inspect` shows the result — nothing writes
