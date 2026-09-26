@@ -15,7 +15,7 @@
     <PackageVersion Include="Utos.Daemon.Client" Version="0.19.0" />
 
     <!-- Transport. The SDK ships no transport of its own. -->
-    <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
 
     <!-- Command-line parsing. AOT-friendly by design; Spectre.Console.Cli is not. -->
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
