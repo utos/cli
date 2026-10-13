@@ -1,66 +1,58 @@
 name: Release
 
-# Publishes the `utos` binaries. CHANGELOG.md drives the version, matching utos/api and
-# utos/sdk-dotnet: a dated `## [x.y.z] - <date>` heading means "this is released", so the
-# dev -> main merge that dates the heading *is* the release.
+# Builds and publishes the `utos` binaries for a release tag, from this repository's own source, so
+# the run that produced them is public and every archive carries a signed provenance attestation
+# that names it: `gh attestation verify <archive> --owner utos`.
 #
-# NativeAOT cannot cross-compile — the toolchain emits native code for the machine it runs on —
-# so every target needs its own runner. That is why this is a matrix rather than one job with
-# five `-r` flags.
+# Only a tag starts it, and the tag is created by the Utos release, which decides the version and
+# which components carry it. A push to a branch never publishes.
+#
+# NativeAOT cannot cross-compile, so every target needs its own runner.
 
 on:
   push:
-    branches: [main]
-  workflow_dispatch:
+    tags: ['v*']
 
 permissions:
-  contents: write   # create the tag and the GitHub release
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  # --- Decide whether this push is a release, and at what version ---------------
-  resolve:
+  version:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.v.outputs.version }}
-      should_release: ${{ steps.v.outputs.should_release }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0   # need tags to tell a release from an ordinary push
-
-      - name: Resolve version from CHANGELOG.md
-        id: v
+      - name: The version this tag releases
+        id: version
         run: |
           set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          grep -qE "^## \[${VERSION//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" CHANGELOG.md \
+            || { echo "::error::CHANGELOG.md has no dated heading for $VERSION"; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-          # First heading carrying a date. An undated heading is the next cycle, not a release.
-          VERSION_LINE=$(grep -m1 '^\#\# \[.*\] - [0-9]' CHANGELOG.md || true)
-          if [ -z "$VERSION_LINE" ]; then
-            echo "::error::No released version in CHANGELOG.md (the heading needs a date)"
-            exit 1
-          fi
+      # The SDK the CLI pins may be released by the same Utos release, minutes ago, and not be
+      # listed on nuget.org yet.
+      - name: Wait for the pinned SDK packages
+        run: |
+          set -euo pipefail
+          grep -oE 'Include="Utos\.[^"]*" Version="[^"]*"' Directory.Packages.props \
+            | sed -E 's/Include="([^"]*)" Version="([^"]*)"/\1 \2/' | while read -r name version; do
+              url="https://api.nuget.org/v3-flatcontainer/${name,,}/${version}/${name,,}.${version}.nupkg"
+              for _ in $(seq 1 90); do
+                curl -sfI "$url" > /dev/null && { echo "$name $version is available"; continue 2; }
+                sleep 20
+              done
+              echo "::error::$name $version is not on nuget.org after 30 minutes"; exit 1
+            done
 
-          VERSION=$(echo "$VERSION_LINE" | sed 's/.*\[\(.*\)\].*/\1/')
-
-          # main also receives pushes that are not releases — a docs fix, a back-merge. An
-          # existing tag means this version already shipped, so skip rather than fail.
-          SHOULD_RELEASE=true
-          if git rev-parse "refs/tags/v${VERSION}" >/dev/null 2>&1; then
-            SHOULD_RELEASE=false
-          fi
-
-          echo "version=$VERSION"               >> "$GITHUB_OUTPUT"
-          echo "should_release=$SHOULD_RELEASE" >> "$GITHUB_OUTPUT"
-          echo "::notice::version=$VERSION release=$SHOULD_RELEASE"
-
-  # --- One native binary per platform ------------------------------------------
   build:
-    needs: resolve
-    if: needs.resolve.outputs.should_release == 'true'
+    needs: version
     strategy:
       fail-fast: false   # a broken platform should not hide the state of the others
       matrix:
@@ -68,145 +60,93 @@ jobs:
           - { rid: win-x64,     os: windows-latest,   archive: zip }
           - { rid: linux-x64,   os: ubuntu-latest,    archive: tar }
           - { rid: linux-arm64, os: ubuntu-24.04-arm, archive: tar }
-          # Apple silicon runners cannot produce an x64 binary, and Rosetta translates x86 -> arm
-          # rather than the reverse, so an Intel Mac needs a native build.
-          #
-          # The newest available Intel image, chosen purely for how long it has before
-          # retirement: v0.1.0 built osx-x64 against SDK 15.5 and osx-arm64 against SDK 26.5, and
-          # both binaries reported `minos 12.0` — .NET pins the deployment target itself, so the
-          # build host does not constrain which macOS versions the binary runs on. That leaves
-          # retirement as the only thing to optimise for, and it matters: macos-13 was retired,
-          # and a job requesting a retired label does not fail, it queues indefinitely.
+          # Apple silicon cannot produce an x64 binary. .NET pins the macOS deployment target
+          # itself, so the Intel image is chosen only for how long it has before retirement — a
+          # job asking for a retired label queues forever rather than failing.
           - { rid: osx-x64,     os: macos-26-intel,   archive: tar }
           - { rid: osx-arm64,   os: macos-latest,     archive: tar }
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v7
-
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
-
-      # The AOT toolchain links with the platform's native linker. Windows gets MSVC and macOS
-      # the Xcode command line tools from the runner image; Linux needs these explicitly.
       - name: Install native toolchain (Linux)
         if: startsWith(matrix.rid, 'linux')
         run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
 
       - name: Publish ${{ matrix.rid }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          dotnet publish src/Utos.Cli/Utos.Cli.csproj \
-            -c Release \
-            -r ${{ matrix.rid }} \
-            -p:Version=${{ needs.resolve.outputs.version }}
+        run: dotnet publish src/Utos.Cli/Utos.Cli.csproj -c Release -r ${{ matrix.rid }} -p:Version=${{ needs.version.outputs.version }}
 
-      # Each runner is native to its target, so the binary it just produced can be executed.
-      # This catches AOT failures that only appear at run time — exactly the class of problem
-      # that makes reflection-based libraries unusable here.
+      # Each runner is native to its target, so the binary it built can run: AOT failures that
+      # only appear at run time show up here.
       - name: Smoke test
-        shell: bash
         run: |
           set -euo pipefail
           BIN="src/Utos.Cli/bin/Release/net10.0/${{ matrix.rid }}/publish/utos"
-          # An `if`, not `&&` — under `set -e` a false `&&` would exit the script.
           if [ "${{ matrix.rid }}" = "win-x64" ]; then BIN="${BIN}.exe"; fi
           "$BIN" --version
           "$BIN" validate tests/smoke/smoke.yaml
           "$BIN" inspect tests/smoke/smoke.yaml
           "$BIN" context ls
 
-      # Which macOS versions the binary will actually launch on. If `minos` matches .NET's
-      # floor regardless of which image built it, the build host does not constrain reach and
-      # the runner label can be chosen purely on how long it has left before retirement.
-      - name: Report macOS deployment target
-        if: startsWith(matrix.rid, 'osx')
-        shell: bash
-        run: |
-          set -euo pipefail
-          BIN="src/Utos.Cli/bin/Release/net10.0/${{ matrix.rid }}/publish/utos"
-          vtool -show-build "$BIN" 2>/dev/null || otool -l "$BIN" | grep -A4 LC_BUILD_VERSION
-
       - name: Package
-        shell: bash
         run: |
           set -euo pipefail
-          VERSION="${{ needs.resolve.outputs.version }}"
+          VERSION="${{ needs.version.outputs.version }}"
           RID="${{ matrix.rid }}"
           SRC="src/Utos.Cli/bin/Release/net10.0/${RID}/publish"
-          mkdir -p dist
-
-          # Ship the binary, the licence and the readme — not the .pdb/.dbg, which are large
-          # and useful only for debugging a specific build.
           STAGE=$(mktemp -d)
+          OUT="$PWD/dist"
+          mkdir -p "$OUT"
+          # The binary, the licence and the readme; not the .pdb/.dbg.
           if [ "$RID" = "win-x64" ]; then cp "$SRC/utos.exe" "$STAGE/"; else cp "$SRC/utos" "$STAGE/"; fi
           cp README.md CHANGELOG.md "$STAGE/"
-
-          # The archive is written outside the staging directory, so it cannot end up
-          # archiving itself.
-          OUT="$PWD/dist"
           if [ "${{ matrix.archive }}" = "zip" ]; then
-            (cd "$STAGE" && 7z a -tzip "$OUT/utos-${VERSION}-${RID}.zip" .) >/dev/null
+            (cd "$STAGE" && 7z a -tzip "$OUT/utos-${VERSION}-${RID}.zip" .) > /dev/null
           else
             tar -czf "$OUT/utos-${VERSION}-${RID}.tar.gz" -C "$STAGE" .
           fi
-
-          ls -la dist
-
       - uses: actions/upload-artifact@v7
         with:
           name: utos-${{ matrix.rid }}
           path: dist/*
           if-no-files-found: error
 
-  # --- Tag, checksum, publish ---------------------------------------------------
   release:
-    needs: [resolve, build]
-    if: needs.resolve.outputs.should_release == 'true'
+    needs: [version, build]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write       # the GitHub release
+      id-token: write       # signing the attestation
+      attestations: write
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
       - uses: actions/download-artifact@v8
         with:
-          path: staging
+          path: dist
           merge-multiple: true
-
       - name: Checksums
-        run: |
-          set -euo pipefail
-          mkdir -p dist && mv staging/* dist/
-          (cd dist && sha256sum ./* > SHA256SUMS)
-          cat dist/SHA256SUMS
-
-      - name: Release notes
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.resolve.outputs.version }}"
-          # The section for this version, up to the next heading.
-          awk -v v="## [$VERSION]" '
-            index($0, v) == 1 { grab = 1; next }
-            /^## \[/ && grab { exit }
-            grab { print }
-          ' CHANGELOG.md > notes.md
-          cat notes.md
-
-      - name: Tag and publish
+        run: (cd dist && sha256sum -- * > SHA256SUMS && cat SHA256SUMS)
+      - name: Attest provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+      - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
-          VERSION="${{ needs.resolve.outputs.version }}"
-
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "v${VERSION}"
-          git push origin "v${VERSION}"
-
-          gh release create "v${VERSION}" \
-            --title "v${VERSION}" \
-            --notes-file notes.md \
-            dist/*
+          awk -v v="## [$VERSION]" 'index($0, v) == 1 { grab = 1; next } /^## \[/ && grab { exit } grab { print }' CHANGELOG.md > notes.md
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes-file notes.md
+            gh release upload "$GITHUB_REF_NAME" --clobber dist/*
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes.md dist/*
+          fi
