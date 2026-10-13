@@ -113,8 +113,8 @@ jobs:
           # An `if`, not `&&` — under `set -e` a false `&&` would exit the script.
           if [ "${{ matrix.rid }}" = "win-x64" ]; then BIN="${BIN}.exe"; fi
           "$BIN" --version
-          "$BIN" validate examples/hello.yaml
-          "$BIN" inspect examples/order-fulfilment.yaml
+          "$BIN" validate tests/smoke/smoke.yaml
+          "$BIN" inspect tests/smoke/smoke.yaml
           "$BIN" context ls
 
       # Which macOS versions the binary will actually launch on. If `minos` matches .NET's

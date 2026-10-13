@@ -114,7 +114,7 @@ public class SourceFormatTests
 
         var rule = workflow.Spec.Activities["call"].OnSuccess[0];
 
-        Assert.Equal(TransitionRule.ActionOneofCase.Result, rule.ActionCase);
+        Assert.Equal(TransitionRule.ExitOneofCase.Result, rule.ExitCase);
         Assert.Equal("{{ output.name }}", rule.Result.Fields["greeted"].StringValue);
     }
 
@@ -140,7 +140,7 @@ public class SourceFormatTests
 
         var parsed = workflow.Spec.Activities["call"].OnSuccess[0];
 
-        Assert.Equal(TransitionRule.ActionOneofCase.Result, parsed.ActionCase);
+        Assert.Equal(TransitionRule.ExitOneofCase.Result, parsed.ExitCase);
         Assert.Empty(parsed.Result.Fields);
     }
 
@@ -162,9 +162,9 @@ public class SourceFormatTests
 
         var rules = workflow.Spec.Activities["watch"].Workflow.Call.OnEmitted;
 
-        Assert.Equal(EmissionRule.ActionOneofCase.Result, rules[0].ActionCase);
+        Assert.Equal(TransitionRule.ExitOneofCase.Result, rules[0].ExitCase);
         Assert.Empty(rules[0].Result.Fields);
-        Assert.Equal(EmissionRule.ActionOneofCase.Error, rules[1].ActionCase);
+        Assert.Equal(TransitionRule.ExitOneofCase.Error, rules[1].ExitCase);
     }
 
     [Fact]
@@ -252,9 +252,9 @@ public class SourceFormatTests
     public void Accepts_onEmitted_in_both_spellings_inside_a_call()
     {
         // onEmitted is declared by CallActivityConfig, so it must reach the inner message even
-        // though the author writes it flat beside workflow/startActivity. The rule's own action
-        // nests one level further, which is what lets a rule carry a transition or a result
-        // instead.
+        // though the author writes it flat beside workflow/startActivity. A rule's effect and exit
+        // are separate keys, and `workflow.call` resolves through the effect oneof as
+        // `type: workflow.call` resolves through config.
         var workflow = Parse("""
             watch:
               type: workflow.call
@@ -263,7 +263,7 @@ public class SourceFormatTests
               on_emitted:
                 - condition: "output.done"
                   transition: { name: wrap-up }
-                - handle:
+                - workflow.call:
                     workflow: ingester
                     startActivity: ingest
             """);
@@ -271,11 +271,11 @@ public class SourceFormatTests
         var call = workflow.Spec.Activities["watch"].Workflow.Call;
 
         Assert.Equal(2, call.OnEmitted.Count);
-        Assert.Equal(EmissionRule.ActionOneofCase.Transition, call.OnEmitted[0].ActionCase);
+        Assert.Equal(TransitionRule.ExitOneofCase.Transition, call.OnEmitted[0].ExitCase);
         Assert.Equal("wrap-up", call.OnEmitted[0].Transition.Name);
-        Assert.Equal(EmissionRule.ActionOneofCase.Handle, call.OnEmitted[1].ActionCase);
-        Assert.Equal("ingester", call.OnEmitted[1].Handle.Workflow);
-        Assert.Equal("ingest", call.OnEmitted[1].Handle.StartActivity);
+        Assert.Equal(TransitionRule.EffectOneofCase.Workflow, call.OnEmitted[1].EffectCase);
+        Assert.Equal("ingester", call.OnEmitted[1].Workflow.Call.Workflow);
+        Assert.Equal("ingest", call.OnEmitted[1].Workflow.Call.StartActivity);
     }
 
     [Theory]
@@ -315,7 +315,7 @@ public class SourceFormatTests
             """);
 
         Assert.Equal(2, workflow.Spec.Activities["fan-out"].Promise.Count.RequiredCount);
-        Assert.Equal(90, workflow.Spec.Activities["wait"].Timer.Duration.Seconds);
+        Assert.Equal("90s", workflow.Spec.Activities["wait"].Timer.Duration);
     }
 
     [Fact]

@@ -16,13 +16,6 @@
 
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true' or '$(GITHUB_ACTIONS)' == 'true'">true</ContinuousIntegrationBuild>
-
-    <!--
-      This CLI still implements spec 0.19 and builds against the 0.19 SDK packages, while the SDK
-      source beside it in the monorepo is at 0.20. Remove this line when the CLI adopts 0.20; see
-      Directory.Build.targets.
-    -->
-    <UseUtosSdkSource>false</UseUtosSdkSource>
   </PropertyGroup>
 
 </Project>

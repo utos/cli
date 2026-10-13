@@ -1,5 +1,4 @@
 using System.CommandLine;
-using Google.Protobuf;
 using Grpc.Core;
 using Utos.Cli.Core.Rendering;
 using Utos.Daemon.V1;
@@ -104,12 +103,12 @@ internal static class ExecutionCommand
                 switch (entry.EntryCase)
                 {
                     case WatchOutputResponse.EntryOneofCase.Value:
-                        Output.Line($"{Output.Dim("value")}   {Compact.Format(entry.Value)}");
+                        Output.Line($"{Output.Dim("value")}   {Values.Format(entry.Value, indented: false)}");
                         break;
 
                     case WatchOutputResponse.EntryOneofCase.Result:
                         Output.Line(Output.Green("result"));
-                        Output.Line(Indented.Format(entry.Result));
+                        Output.Line(Values.Format(entry.Result, indented: true));
                         break;
 
                     case WatchOutputResponse.EntryOneofCase.Error:
@@ -129,9 +128,6 @@ internal static class ExecutionCommand
 
         return command;
     }
-
-    private static readonly JsonFormatter Compact = JsonFormatter.Default;
-    private static readonly JsonFormatter Indented = new(JsonFormatter.Settings.Default.WithIndentation());
 
     private static string Status(ExecutionStatus status) => status switch
     {

@@ -42,7 +42,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 
 ```bash
 utos context create local http://localhost:5164
-utos run ./examples/hello.yaml --start greet \
+utos run ./hello.yaml --start greet \
     --input '{"name":"world"}' \
     --env API_BASE=https://api.dev \
     --follow
@@ -92,9 +92,9 @@ the run with `return` — with a value, or bare to end with none — fails it wi
 are derived from the protobuf descriptor rather than hard-coded, so a new activity kind in the
 spec becomes authorable as soon as the SDK package is bumped. See
 [`workflow-source-format.md`](https://github.com/utos/api/blob/main/docs/workflow-source-format.md)
-for the normative mapping (`return` is `result` on the wire),
+for the normative mapping (`return` is `result` on the wire), and
 [`template-expressions.md`](https://github.com/utos/api/blob/main/docs/template-expressions.md)
-for the language, and [`examples/`](examples) for working files.
+for the language.
 
 ## Errors
 

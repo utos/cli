@@ -1,9 +1,0 @@
-{
-  "request": { "method": "GET", "urlPath": "/orders/A-1042/refundability" },
-  "response": {
-    "status": 200,
-    "headers": { "Content-Type": "application/json" },
-    "jsonBody": { "refundable": true, "orderTotal": 48.5, "currency": "EUR" },
-    "fixedDelayMilliseconds": 118
-  }
-}

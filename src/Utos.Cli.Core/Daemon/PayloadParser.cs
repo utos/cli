@@ -1,6 +1,6 @@
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
+using System.Text.Json;
 using Utos.Daemon.V1;
+using Utos.Workflows.V1;
 
 namespace Utos.Cli.Core.Daemon;
 
@@ -20,16 +20,14 @@ public static class PayloadParser
 
         var json = input.StartsWith('@') ? ReadFile(input[1..]) : input;
 
-        Struct parsed;
+        WorkflowMap parsed;
         try
         {
-            parsed = JsonParser.Default.Parse<Struct>(json);
+            parsed = WorkflowValues.MapFromJson(json);
         }
-        // Malformed JSON surfaces as InvalidJsonException, structural mismatches as
-        // InvalidProtocolBufferException; both mean the same thing to whoever typed --input.
-        catch (Exception ex) when (ex is InvalidProtocolBufferException or InvalidJsonException)
+        catch (JsonException ex)
         {
-            throw new ArgumentException($"--input is not valid JSON: {ex.Message}", ex);
+            throw new ArgumentException($"--input is not a JSON object: {ex.Message}", ex);
         }
 
         foreach (var (key, value) in parsed.Fields) payload.Data[key] = value;

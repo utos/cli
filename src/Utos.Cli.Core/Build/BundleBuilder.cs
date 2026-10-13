@@ -148,8 +148,9 @@ public static class BundleBuilder
         }
 
         /// <summary>
-        /// Produces the built form of a workflow: sub-workflow activities name canonical identities
-        /// instead of aliases, and the dependency map is emptied. Leaving it populated would make
+        /// Produces the built form of a workflow: every place a document is named — a sub-workflow
+        /// activity, a promise branch, a rule's dispatch effect — names a canonical identity
+        /// instead of an alias, and the dependency map is emptied. Leaving it populated would make
         /// two builds of the same logical workflow hash differently (rule <c>UTOS-B007</c>).
         /// </summary>
         private Workflow Flatten(Workflow workflow,
@@ -164,6 +165,9 @@ public static class BundleBuilder
 
             foreach (var (name, activity) in built.Spec.Activities)
             {
+                RewriteRules(activity.OnSuccess, "onSuccess", name);
+                RewriteRules(activity.OnFailure, "onFailure", name);
+
                 switch (activity.ConfigCase)
                 {
                     case WorkflowActivity.ConfigOneofCase.Workflow:
@@ -172,21 +176,7 @@ public static class BundleBuilder
                             $"Activity '{name}'", selfAllowed: false);
 
                         if (activity.Workflow.ModeCase == WorkflowActivityConfig.ModeOneofCase.Call)
-                            for (var i = 0; i < activity.Workflow.Call.OnEmitted.Count; i++)
-                            {
-                                var rule = activity.Workflow.Call.OnEmitted[i];
-
-                                // Only a handle names a document. A transition names an activity
-                                // in this workflow and a result names nothing, so neither is an
-                                // alias site — and neither may be rewritten, since the value they
-                                // carry is not a dependency reference at all.
-                                if (rule.ActionCase != EmissionRule.ActionOneofCase.Handle) continue;
-
-                                rule.Handle.Workflow = Rewrite(
-                                    rule.Handle.Workflow,
-                                    $"The onEmitted handler at index {i} of activity '{name}'",
-                                    selfAllowed: false);
-                            }
+                            RewriteRules(activity.Workflow.Call.OnEmitted, "onEmitted", name);
 
                         break;
 
@@ -202,6 +192,24 @@ public static class BundleBuilder
             }
 
             return built;
+
+            // Only a dispatch effect names a document. A transition names an activity in this
+            // workflow and a result names nothing, so neither is an alias site — and neither may
+            // be rewritten, since the value they carry is not a dependency reference at all.
+            void RewriteRules(IList<TransitionRule> rules, string list, string activity)
+            {
+                for (var i = 0; i < rules.Count; i++)
+                {
+                    var rule = rules[i];
+                    if (rule.EffectCase != TransitionRule.EffectOneofCase.Workflow
+                        || rule.Workflow.ModeCase != DispatchEffect.ModeOneofCase.Call) continue;
+
+                    rule.Workflow.Call.Workflow = Rewrite(
+                        rule.Workflow.Call.Workflow,
+                        $"The {list} rule at index {i} of activity '{activity}'",
+                        selfAllowed: false);
+                }
+            }
 
             // `self` is resolved exactly like an alias — to this document's own canonical identity
             // — which is what keeps it out of the dependency graph and so out of the cycle check

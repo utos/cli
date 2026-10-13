@@ -1,0 +1,24 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: smoke
+  version: "1.0.0"
+  description: What the published binary is checked against. Not an example.
+spec:
+  dependencies:
+    notifier: ./shared/notify.yaml
+  activities:
+    fetch:
+      type: http
+      method: GET
+      url: "{{ env.API_BASE }}/status"
+      onSuccess:
+        - condition: output.ok
+          workflow.call: { workflow: notifier, startActivity: send, input: { text: "up" } }
+          return:
+        - transition: { name: wait }
+    wait:
+      type: timer
+      duration: 30s
+      onSuccess:
+        - transition: { name: fetch }

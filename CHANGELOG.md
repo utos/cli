@@ -5,25 +5,41 @@ All notable changes to the Utos CLI are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-**Version parity across the Utos repos: the minor is the contract, the patch is
-this CLI's own.** `0.19.x` here means *implements spec 0.19*, the same way it
-does in `utos/dapr-daemon` and `utos/sdk-dotnet`. If the spec reaches `0.20` and
-this CLI has not implemented it, it stays at `0.19.x` — which is then a true
-statement about what it supports rather than a number a pipeline invented.
+**One version line across the spec and its implementations.** The spec
+(`utos/api`), `utos/sdk-dotnet`, `utos/dapr-daemon` and `utos/cli` share one
+version, and its minor is the spec: `0.20.x` in any of them means *implements
+spec 0.20*. A release gives its version only to the components that changed, so
+the numbers below may skip; a component with nothing new does not release.
 
 ## [Unreleased]
 
-### Added
+### Changed
 
-- **The minor-version parity is enforced in CI rather than documented and hoped for.**
-  `SPEC_VERSION` names the spec this CLI implements, and `scripts/check-version-parity.sh` runs
-  first in the build: the minor of the top `CHANGELOG.md` version must equal it, and every
-  `Utos.*` pin must be on that same minor. Until now the invariant was one typo away from being
-  silently false — a heading naming `0.20.0` against a spec still at `0.19` would have released
-  without a word
+- **Breaking: the CLI speaks spec `0.20`.** The Utos SDK pins move from `0.19.0` to `0.20.0`, so
+  it reads 0.20 documents and talks to a 0.20 daemon. A rule is an effect and an exit (`emit`
+  beside `transition`, not around it), `handle` is `workflow.call`, and a timer's `duration` is a
+  string such as `90s` or `1h30m`. All of that is the SDK's to read; a 0.19 document gets the
+  SDK's error, not a CLI one
+- **Every rule list is an alias site.** Since 0.20 `onSuccess` and `onFailure` can dispatch a
+  document with `workflow.call` as well as `onEmitted`, so the build step resolves a dependency
+  alias in all three. It used to rewrite `onEmitted` handlers only, and a dispatch from
+  `onSuccess` would have reached the daemon naming an alias the bundle no longer declares
+  (`UTOS-B006`)
+- **`--input` is sent as a `WorkflowValue`**, the run-time value 0.20 puts on the wire in place of
+  `google.protobuf.Struct`. What you type is unchanged: a JSON object, or `@file`
+- **`utos execution output` prints values as plain JSON.** A 0.20 value printed through protobuf's
+  JSON mapping reads `{"fields":{"ok":{"boolValue":true}}}`; the CLI prints `{"ok":true}`, as
+  0.19 did. A value holding a blob has no plain-JSON form, so it alone is printed in the mapping,
+  which can't be mistaken for data the workflow returned
+
+### Removed
+
+- `examples/` is removed from this repository
 
 ### Fixed
 
+- **`utos execution ls` wrote durations in the machine's number format**, `1,9s` on a machine set
+  to a comma decimal separator. They are written the same way everywhere now
 - **The design notes described a dependency the CLI no longer has.** They explained why YAML is
   read through `YamlDotNet`'s node graph rather than its object deserializer — true while the
   source-format mapping lived here, and untrue since `0.19.0` moved it to `Utos.Workflow.Source`.

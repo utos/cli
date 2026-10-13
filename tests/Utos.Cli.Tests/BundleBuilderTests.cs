@@ -195,9 +195,9 @@ public class BundleBuilderTests : IDisposable
     }
 
     [Fact]
-    public void An_onEmitted_rule_that_is_not_a_handle_is_left_alone()
+    public void An_onEmitted_rule_that_dispatches_nothing_is_left_alone()
     {
-        // Only a handle names a document. A transition names an activity in this workflow and a
+        // Only a dispatch effect names a document. A transition names an activity in this workflow and a
         // result names nothing, so neither is an alias site — and resolving one anyway would
         // either report a perfectly good activity name as an undeclared dependency, or rewrite it
         // to a canonical identity that names no activity at all.
@@ -256,7 +256,7 @@ public class BundleBuilderTests : IDisposable
                   workflow: self
                   startActivity: poll
                   onEmitted:
-                    - handle:
+                    - workflow.call:
                         workflow: self
                         startActivity: handle
                 handle:
@@ -271,7 +271,57 @@ public class BundleBuilderTests : IDisposable
         // the other is a worse experience than being told once.
         Assert.Equal(2, error.Issues.Count);
         Assert.All(error.Issues, i => Assert.Equal(SourceCodes.SelfNotAllowedHere, i.Code));
-        Assert.Contains(error.Issues, i => i.Message.Contains("onEmitted handler"));
+        Assert.Contains(error.Issues, i => i.Message.Contains("onEmitted rule at index 0"));
+    }
+
+    [Fact]
+    public void A_dispatch_effect_names_a_canonical_identity_in_every_rule_list()
+    {
+        // Since spec 0.20 every list allows the same effects, so onSuccess and onFailure can
+        // dispatch a document as well as onEmitted. Each is an alias site; one left unrewritten
+        // would reach the daemon naming a dependency the bundle no longer declares (UTOS-B006).
+        Write("notifier.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: notifier
+              version: "2.0.0"
+            spec:
+              activities:
+                send:
+                  type: http
+                  method: POST
+                  url: https://hooks.example.com/notify
+            """);
+        var entry = Write("root.yaml", """
+            apiVersion: utos.io/v1
+            kind: Workflow
+            metadata:
+              name: root
+              version: "1.0.0"
+            spec:
+              dependencies:
+                notify: ./notifier.yaml
+              activities:
+                watch:
+                  type: workflow.call
+                  workflow: notify
+                  startActivity: send
+                  onEmitted:
+                    - workflow.call: { workflow: notify, startActivity: send }
+                  onSuccess:
+                    - workflow.call: { workflow: notify, startActivity: send }
+                      return: {}
+                  onFailure:
+                    - workflow.call: { workflow: notify, startActivity: send }
+                      error: { code: WATCH_FAILED }
+            """);
+
+        var watch = BundleBuilder.Build(entry).Bundle.Workflows["root:1.0.0"].Spec.Activities["watch"];
+
+        Assert.Equal("notifier:2.0.0", watch.Workflow.Call.OnEmitted[0].Workflow.Call.Workflow);
+        Assert.Equal("notifier:2.0.0", watch.OnSuccess[0].Workflow.Call.Workflow);
+        Assert.Equal("notifier:2.0.0", watch.OnFailure[0].Workflow.Call.Workflow);
     }
 
     [Fact]

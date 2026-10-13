@@ -1,0 +1,12 @@
+apiVersion: utos.io/v1
+kind: Workflow
+metadata:
+  name: notify
+  version: "1.0.0"
+spec:
+  activities:
+    send:
+      type: http
+      method: POST
+      url: "{{ env.HOOK_URL }}"
+      body: "{{ input.text }}"
