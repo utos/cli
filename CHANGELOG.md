@@ -11,7 +11,7 @@ version, and its minor is the spec: `0.20.x` in any of them means *implements
 spec 0.20*. A release gives its version only to the components that changed, so
 the numbers below may skip; a component with nothing new does not release.
 
-## [Unreleased]
+## [0.20.3] - 2026-10-13
 
 ### Changed
 
