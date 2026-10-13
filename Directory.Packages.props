@@ -15,16 +15,16 @@
     <PackageVersion Include="Utos.Daemon.Client" Version="0.19.0" />
 
     <!-- Transport. The SDK ships no transport of its own. -->
-    <PackageVersion Include="Grpc.Net.Client" Version="2.83.0" />
+    <PackageVersion Include="Grpc.Net.Client" Version="2.84.0" />
 
     <!-- Command-line parsing. AOT-friendly by design; Spectre.Console.Cli is not. -->
     <PackageVersion Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
 
   <ItemGroup Label="Test-only">
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.0" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
     <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
   </ItemGroup>
 
 </Project>
